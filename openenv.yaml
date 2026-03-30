@@ -1,0 +1,40 @@
+name: openenv-email-triage
+version: 1.0.0
+description: Enterprise Email Triage & Workflow Simulation (EETWS)
+
+action_space:
+  type: dict
+  schema:
+    action_type:
+      type: str
+      description: "One of: classify_email, route_to, draft_reply, escalate, mark_spam, request_more_info, noop"
+    arguments:
+      type: dict
+      description: "Arguments specific to the action, e.g., {'category': 'support'} or {'text': 'reply content'}"
+
+observation_space:
+  type: dict
+  schema:
+    email_id: str
+    subject: str
+    sender_type: str
+    email_body: str
+    urgency_score: float
+    sentiment: str
+    thread_history: list
+    current_status: str
+    previous_actions: list
+
+reward:
+  description: "Dense reward in [0, 1] for classification accuracy, correct routing, final replies, and efficiency."
+
+tasks:
+  - id: task_1
+    description: "Classify email correctly (Easy)"
+  - id: task_2
+    description: "Classification + Routing + Reply (Medium)"
+  - id: task_3
+    description: "Full Workflow - VIP Urgency (Hard)"
+
+entrypoint:
+  command: "uvicorn env.environment:app --host 0.0.0.0 --port 7860"
