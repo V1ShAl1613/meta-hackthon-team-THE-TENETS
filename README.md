@@ -1,118 +1,252 @@
 # OpenEnv: Enterprise Email Triage & Workflow Simulation (EETWS)
 
-## 📌 Problem Motivation
-Customer support teams at large enterprises are overwhelmed by thousands of daily emails ranging from simple password resets to critical VIP escalations. Automating the initial triage—classification, routing, and drafting safe preliminary responses—can drastically reduce resolution time and operational costs. However, training AI agents to accurately and safely perform these actions without hallucinations or improper escalations is a significant challenge.
-
-The **EETWS OpenEnv** provides a deterministic, rigorous RL benchmark for evaluating how well an agent can handle these triage and workflow tasks under constrained steps and safety rules.
+A deterministic reinforcement learning benchmark for evaluating AI agents on enterprise email triage workflows — classification, routing, escalation, and safe reply drafting.
 
 ---
 
-## 🏗️ Architecture Explanation
-The environment strictly separates the **Core Environment logic** from its **API Wrapper**, ensuring it is both highly performant and easily deployable.
+## Problem Statement
 
-1. **`EmailEnv` (Core Class)**: A pure Python implementation that maintains a deterministic internal state (action history, current active email observation, step count). It executes state transitions without stochasticity once a task is initialized.
-2. **FastAPI Wrapper**: Provides standard OpenEnv-compliant HTTP endpoints (`/reset`, `/step`, `/state`) specifically to wrap the pure Python logic, exposing port 7860 to be native to Hugging Face Spaces.
+Enterprise support teams process thousands of daily emails spanning password resets, sales inquiries, and critical VIP escalations. Automating initial triage (classify → route → respond) reduces resolution time dramatically, but AI agents must handle this **safely, accurately, and without hallucination**.
 
-## 🧩 Schema Definitions
+EETWS provides a rigorous, deterministic evaluation environment with dense reward shaping, anti-gaming protections, and realistic multi-step workflows across three difficulty levels.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│  FastAPI Wrapper (env/environment.py)       │
+│  POST /reset  · POST /step  · GET /state    │
+├─────────────────────────────────────────────┤
+│  EmailEnv Core (Pure Python)                │
+│  Deterministic state · Action validation    │
+│  Loop detection · Step limits               │
+├──────────────┬──────────────────────────────┤
+│  Tasks       │  Graders                     │
+│  (tasks.py)  │  (graders.py)                │
+│  3 scenarios │  Dense reward [0.0 – 1.0]    │
+└──────────────┴──────────────────────────────┘
+```
+
+**Key design decisions:**
+- Environment state is fully deterministic — no randomness after initialization
+- Single-worker deployment prevents state corruption
+- All rewards are clamped to `[0.0, 1.0]` after every computation
+- Loop detection terminates episodes that exhibit repeated or alternating action patterns
+
+---
+
+## Schema Definitions
 
 ### Observation Space
-Provided at every step to the agent:
+
+Returned by `/reset` and within every `/step` response:
+
 ```json
 {
-  "email_id": "string",
-  "subject": "string",
-  "sender_type": "string (customer | spam | internal | VIP)",
-  "email_body": "string",
-  "urgency_score": 0.0,
-  "sentiment": "string",
+  "email_id": "email_001",
+  "subject": "Cannot reset my password",
+  "sender_type": "customer",
+  "email_body": "Hi, I've been trying to reset my password...",
+  "urgency_score": 0.4,
+  "sentiment": "frustrated",
   "thread_history": [],
-  "current_status": "string",
+  "current_status": "unread",
   "previous_actions": []
 }
 ```
 
 ### Action Space
-Strict format using a unified model.
+
+Sent to `/step`:
+
 ```json
 {
-  "action_type": "<classify_email|route_to|draft_reply|escalate|mark_spam|request_more_info|noop>",
+  "action_type": "classify_email",
   "arguments": {
-     // Key-value pairs matching the specific action_type
+    "category": "support"
+  }
+}
+```
+
+**Valid `action_type` values:** `classify_email`, `route_to`, `draft_reply`, `escalate`, `mark_spam`, `request_more_info`, `noop`
+
+### Step Response
+
+Returned by `/step`:
+
+```json
+{
+  "observation": { "..." : "..." },
+  "reward": {
+    "score": 0.85,
+    "breakdown": {
+      "classification": 0.8,
+      "routing": 0.0,
+      "reply_quality": 0.0,
+      "efficiency": 0.15,
+      "bonus": 0.1,
+      "penalties": -0.03
+    }
+  },
+  "done": true,
+  "info": {
+    "step": 1,
+    "task_id": "task_1",
+    "reason": "Task complete"
   }
 }
 ```
 
 ---
 
-## 🎯 Task Descriptions
+## Tasks
 
 ### Task 1 — Basic Classification (Easy)
-- **Goal**: Classify an incoming support complaint correctly without taking unnecessary intermediary steps.
-- **Grader Focus**: Exact match on classification output.
 
-### Task 2 — Routing + Reply (Medium)
-- **Goal**: Correctly identify the intent, route to the correct department, and draft an appropriate reply containing required information.
-- **Grader Focus**: Checks for deterministic sequence matching on classification and routing, and evaluates drafted text utilizing a relevance ratio scoring method.
+**Scenario:** A customer emails about a password reset issue.  
+**Goal:** Classify the email as `support` in a single action.  
+**Grading:** Exact match on classification. Penalties for unnecessary extra actions.
 
-### Task 3 — Full Workflow Automation (Hard)
-- **Goal**: Detect a VIP's urgent situation (e.g. server outage), classify it, route it, trigger an internal escalation step, and notify the user safely.
-- **Grader Focus**: Heavily penalizes unsafe replies or failure to escalate VIP contexts, tracking exact required workflows.
+### Task 2 — Classification + Routing + Reply (Medium)
 
----
+**Scenario:** A customer inquires about upgrading to the Enterprise plan.  
+**Goal:** Classify as `sales` → Route to `sales_department` → Draft a reply referencing the upgrade/demo.  
+**Grading:** Checks each step independently. Reply evaluated for keyword relevance and politeness.
 
-## 🧮 Reward Design
-The environment implements a **balanced, dense reward function** returning values exactly within the bounds `[0.0, 1.0]`. Average baseline agents score around `0.5 - 0.75`.
+### Task 3 — Full Workflow with VIP Escalation (Hard)
 
-### Structured Reward Breakdown
-At each step, the reward exposes a distinct breakdown:
-```json
-{
-  "classification": 0.0,
-  "routing": 0.0,
-  "reply_quality": 0.0,  
-  "efficiency": 0.0,
-  "bonus": 0.0,
-  "penalties": 0.0
-}
-```
-
-### Key Grading Logic
-1. **Reply Evaluation (Relevance Ratio)**: Replies are not bounded by an arbitrary hard limit. Instead, the relevance ratio is calculated: `relevant_keywords / total_words`. If the text contains extreme fluff (e.g., `< 0.05` relevance and `>30` words), keyword stuffing penalties apply.
-2. **Politeness Bonus**: Replies containing polite semantics ("please", "thank you", "apologies") natively accrue +0.1 to the bonus track.
-3. **Perfect Sequence Bonus**: Agents that successfully complete a full valid workflow directly implicitly unlock an absolute +0.1/+0.2 efficiency bonus on top of their core task score.
-4. **Adversarial Spam Constraints**: Multi-predicting classifications or routing to guess the correct tag is strictly monitored and penalizes via the `penalties` tracking system.
-
-> **Note on Telemetry**: All intermediate step errors are appended iteratively into `info["mistake"] / info["suggestion"]` to help agent curriculum learning strategies.
+**Scenario:** A VIP client reports a production server outage requiring immediate attention.  
+**Goal:** Classify as `support` → Escalate → Route to `engineering_escalation` → Draft an urgent acknowledgment reply.  
+**Grading:** Mandatory escalation check. Heavy penalty for failing to escalate VIP issues. Reply must reference urgency.
 
 ---
 
-## 🚀 Setup Steps
+## Reward Design
 
-### Local Python Setup
-Ensure Python 3.10+ is installed.
+All rewards are bounded to `[0.0, 1.0]`. The breakdown tracks six components:
+
+| Component | Description |
+|-----------|-------------|
+| `classification` | Correct category match |
+| `routing` | Correct department routing |
+| `reply_quality` | Keyword relevance in drafted replies |
+| `efficiency` | Bonus for completing tasks in fewer steps |
+| `bonus` | Politeness bonus, perfect-sequence bonus, escalation credit |
+| `penalties` | Step cost (0.03/step), duplicate actions, incorrect values |
+
+**Anti-gaming protections:**
+- Duplicate classifications or routings incur `-0.2` penalty
+- Loop detection (repeated or alternating actions) terminates the episode with score penalty
+- Verbose, low-relevance replies are penalized
+- Missing mandatory escalation (task 3) costs `-0.2`
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+- Python 3.10+
+- An OpenAI-compatible API key (set as `HF_TOKEN` or `API_KEY`)
+
+### Install Dependencies
+
 ```bash
 pip install -r requirements.txt
-uvicorn env.environment:app --host 0.0.0.0 --port 7860
 ```
 
-### 🐳 Docker Usage
+### Start the Environment Server
+
+```bash
+uvicorn env.environment:app --host 0.0.0.0 --port 7860 --workers 1
+```
+
+The server will be available at `http://localhost:7860`.
+
+### Run the Inference Agent
+
+In a **separate terminal**, with the server running:
+
+```bash
+export HF_TOKEN="your-api-key"
+export MODEL_NAME="gpt-4o-mini"
+python inference.py
+```
+
+On Windows (PowerShell):
+
+```powershell
+$env:HF_TOKEN="your-api-key"
+$env:MODEL_NAME="gpt-4o-mini"
+python inference.py
+```
+
+---
+
+## Docker Usage
+
+### Build
+
 ```bash
 docker build -t openenv-email .
+```
+
+### Run
+
+```bash
 docker run -p 7860:7860 openenv-email
 ```
 
-### 🌐 Hugging Face Deployment
-1. Create a anew Space (Docker SDK).
-2. Push this repository's contents.
-3. Hugging Face Space automatically runs the `Dockerfile`, binding the app to the default `7860` port. The system will be fully responsive and show an "openenv" tag.
+The environment API will be accessible at `http://localhost:7860`.
+
+### Run Inference Against Docker Container
+
+With the container running:
+
+```bash
+export ENV_BASE_URL="http://localhost:7860"
+export HF_TOKEN="your-api-key"
+python inference.py
+```
 
 ---
 
-## 🧪 OpenEnv Validation & Testing
-We provide an `inference.py` script locally out of the box designed to use the OpenAI API interface (adaptable to HF routers, vLLM, etc.) to traverse all tasks.
+## API Endpoints
 
-```bash
-export HF_TOKEN="your-key"
-export MODEL_NAME="gpt-4o"
-python inference.py
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/reset` | Reset environment. Body: `{"task_id": "task_1"}` |
+| `POST` | `/step` | Take an action. Body: `{"action_type": "...", "arguments": {...}}` |
+| `GET` | `/state` | Get current environment state (debug) |
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `Connection refused` on inference | Ensure the environment server is running on port 7860 before running `inference.py` |
+| `Invalid API key` error | Set `HF_TOKEN` or `API_KEY` environment variable with a valid key |
+| Score is 0.0 on all tasks | Check that `MODEL_NAME` points to a model that supports JSON mode |
+| Docker port conflict | Ensure nothing else is using port 7860, or map to a different port: `docker run -p 8080:7860 openenv-email` |
+| `ModuleNotFoundError: env` | Run uvicorn from the project root directory, not from inside `env/` |
+
+---
+
+## Project Structure
+
+```
+├── env/
+│   ├── __init__.py          # Package init
+│   ├── models.py            # Pydantic models (Observation, Action, Reward, etc.)
+│   ├── tasks.py             # Task definitions (3 scenarios)
+│   ├── graders.py           # Deterministic grading logic
+│   └── environment.py       # EmailEnv class + FastAPI endpoints
+├── inference.py             # OpenAI-compatible inference agent
+├── openenv.yaml             # OpenEnv schema specification
+├── requirements.txt         # Python dependencies
+├── Dockerfile               # Container build configuration
+└── README.md
 ```

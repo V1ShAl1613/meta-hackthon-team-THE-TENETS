@@ -9,7 +9,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY env /app/env
-COPY scripts /app/scripts
+COPY inference.py /app/inference.py
 COPY openenv.yaml /app/openenv.yaml
 
 EXPOSE 7860
