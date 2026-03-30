@@ -39,9 +39,19 @@ class EmailEnv:
                 info={"error": "Episode already done"}
             )
             
+        allowed_actions = ["classify_email", "route_to", "draft_reply", "escalate", "mark_spam", "request_more_info", "noop"]
+        if action.action_type not in allowed_actions:
+            self.is_done = True
+            return StepResponse(
+                observation=self.current_obs,
+                reward=Reward(score=0.0, breakdown={"penalties": -1.0}),
+                done=True,
+                info={"error": "Invalid action_type", "reason": f"{action.action_type} is not allowed"}
+            )
+            
         self.step_count += 1
         self.action_history.append(action)
-        self.current_obs.previous_actions.append(action.action_type)
+        self.current_obs.previous_actions = self.current_obs.previous_actions + [action.action_type]
         
         # update state based on action
         if action.action_type == "classify_email":
@@ -63,20 +73,34 @@ class EmailEnv:
         
         # Termination conditions
         loop_detected = False
-        if len(self.action_history) >= 2:
+        loop_pattern = None
+        if len(self.action_history) >= 4:
+            last_four = [json.dumps(a.dict(), sort_keys=True) for a in self.action_history[-4:]]
+            if last_four[0] == last_four[2] and last_four[1] == last_four[3]:
+                loop_detected = True
+                loop_pattern = "alternating_pattern"
+        if not loop_detected and len(self.action_history) >= 2:
             last_two = [json.dumps(a.dict(), sort_keys=True) for a in self.action_history[-2:]]
             if len(set(last_two)) == 1:
                 loop_detected = True
+                loop_pattern = "repeated_action"
 
         reward, info_additions = calculate_reward(self.task_id, self.action_history, task_data)
         
+        history_types = [a.action_type for a in self.action_history]
         task_complete = False
         if self.task_id == "task_1" and action.action_type == "classify_email":
             task_complete = True
         elif self.task_id == "task_2" and action.action_type == "draft_reply":
-            task_complete = True
+            if "classify_email" in history_types and "route_to" in history_types:
+                task_complete = True
         elif self.task_id == "task_3" and action.action_type == "draft_reply":
-            task_complete = True
+            if (
+                "classify_email" in history_types and
+                "escalate" in history_types and
+                "route_to" in history_types
+            ):
+                task_complete = True
             
         info = {
             "step": self.step_count, 
@@ -89,12 +113,17 @@ class EmailEnv:
             self.is_done = True
             if loop_detected:
                 reward.score -= 1.0
-                reward.breakdown["penalties"] -= 1.0
+                penalties = reward.breakdown.get("penalties", 0.0)
+                reward.breakdown["penalties"] = max(-1.0, penalties - 1.0)
                 info["reason"] = "Loop detected"
+                info["loop_pattern"] = loop_pattern
             elif self.step_count >= MAX_STEPS:
                 info["reason"] = "Max steps reached"
             elif task_complete:
                 info["reason"] = "Task complete"
+                
+        # Clamp reward bounding after all modifications
+        reward.score = max(0.0, min(1.0, float(reward.score)))
                 
         return StepResponse(
             observation=self.current_obs,

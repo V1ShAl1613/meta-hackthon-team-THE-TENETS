@@ -18,7 +18,8 @@ def _evaluate_reply(text: str, keywords: List[str]) -> Tuple[float, str]:
     if not words:
         return -0.2, "Reply is empty."
     
-    matches = sum(1 for kw in keywords if kw.lower() in text)
+    words_set = set(words)
+    matches = sum(1 for kw in keywords if kw.lower() in words_set)
     if matches == 0:
         return -0.3, "Reply missing required keywords."
         
@@ -27,7 +28,9 @@ def _evaluate_reply(text: str, keywords: List[str]) -> Tuple[float, str]:
         # Keyword stuffing but lots of fluff
         return -0.1, "Reply is too verbose or lacks density."
         
-    return 0.5, ""
+    base = 0.3
+    bonus = min(0.2, matches * 0.05)
+    return base + bonus, ""
 
 def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
     target = task_data["target_classification"]
@@ -80,7 +83,8 @@ def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     if not info_dict and breakdown["classification"] > 0:
         info_dict["suggestion"] = "Great job!"
         
-    return Reward(score=max(0.0, min(1.0, score)), breakdown=breakdown), info_dict
+    score = max(0.0, min(1.0, float(score)))
+    return Reward(score=score, breakdown=breakdown), info_dict
 
 def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
     target_class = task_data["target_classification"]
@@ -173,7 +177,8 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure all required steps are completed appropriately."
         
-    return Reward(score=max(0.0, min(1.0, score)), breakdown=breakdown), info_dict
+    score = max(0.0, min(1.0, float(score)))
+    return Reward(score=score, breakdown=breakdown), info_dict
 
 def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
     target_class = task_data["target_classification"]
@@ -252,6 +257,10 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
             score += polite
             breakdown["bonus"] += polite
                 
+    if task_data.get("must_escalate") and escalations == 0:
+        score -= 0.2
+        breakdown["penalties"] -= 0.2
+
     if classifications > 1 or routings > 1 or escalations > 1:
         score -= 0.2
         breakdown["penalties"] -= 0.2
@@ -271,7 +280,8 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure VIP emails are escalated explicitly."
         
-    return Reward(score=max(0.0, min(1.0, score)), breakdown=breakdown), info_dict
+    score = max(0.0, min(1.0, float(score)))
+    return Reward(score=score, breakdown=breakdown), info_dict
 
 def calculate_reward(task_id: str, action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
     if task_id == "task_1":
