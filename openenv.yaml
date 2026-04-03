@@ -1,0 +1,94 @@
+name: openenv-email-triage
+version: 1.0.0
+description: Enterprise Email Triage & Workflow Simulation (EETWS)
+
+action_space:
+  type: object
+  additionalProperties: false
+  properties:
+    action_type:
+      type: string
+      description: The categorical action the agent decides to execute.
+      enum:
+        - classify_email
+        - route_to
+        - draft_reply
+        - escalate
+        - mark_spam
+        - request_more_info
+        - noop
+    arguments:
+      type: object
+      additionalProperties: true
+      description: Parameters required for the selected action (e.g., category, department, or reply text).
+  required:
+    - action_type
+    - arguments
+
+observation_space:
+  type: object
+  additionalProperties: false
+  properties:
+    email_id:
+      type: string
+      description: Unique identifier for the current email instance.
+    subject:
+      type: string
+      description: The subject line of the incoming email.
+    sender_type:
+      type: string
+      description: Categorical classification of the sender (e.g., customer, internal, VIP).
+    email_body:
+      type: string
+      description: The full text body content of the incoming email.
+    urgency_score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: A pre-calculated priority metric ranging from 0.0 (low) to 1.0 (critical).
+    sentiment:
+      type: string
+      description: Natural language sentiment of the email (e.g., frustrated, neutral, positive).
+    thread_history:
+      type: array
+      description: List of previous messages in the email conversation thread.
+      items:
+        type: string
+    current_status:
+      type: string
+      description: Current triaging state of the email within the workflow system.
+    previous_actions:
+      type: array
+      description: Historical record of actions taken on this specific email so far.
+      items:
+        type: string
+  required:
+    - email_id
+    - subject
+    - sender_type
+    - email_body
+    - urgency_score
+    - sentiment
+    - thread_history
+    - current_status
+    - previous_actions
+
+reward:
+  type: number
+  minimum: 0.0
+  maximum: 1.0
+  description: Dense deterministic reward calculating classification accuracy, routing correctness, reply relevance, workflow efficiency, and safety penalties for invalid or unsafe actions.
+
+tasks:
+  - id: task_1
+    difficulty: easy
+    description: Correctly classify an incoming generic support request without taking unnecessary intermediary actions.
+  - id: task_2
+    difficulty: medium
+    description: Classify a customer inquiry, route it to the appropriate finance department, and draft a polite, context-aware resolution reply.
+  - id: task_3
+    difficulty: hard
+    description: Detect an urgent VIP server outage issue, execute mandatory internal escalation protocols, and handle high-priority routing flawlessly.
+
+entrypoint:
+  command: uvicorn env.environment:app --host 0.0.0.0 --port 7860 --workers 1
