@@ -1,3 +1,11 @@
+---
+title: OpenEnv Email Triage
+emoji: 📧
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
 # OpenEnv: Enterprise Email Triage & Workflow Simulation (EETWS)
 
 A deterministic reinforcement learning benchmark for evaluating AI agents on enterprise email triage workflows — classification, routing, escalation, and safe reply drafting.
