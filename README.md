@@ -5,6 +5,7 @@ colorFrom: blue
 colorTo: indigo
 sdk: docker
 app_port: 7860
+tags: [openenv]
 ---
 # OpenEnv: Enterprise Email Triage & Workflow Simulation (EETWS)
 
