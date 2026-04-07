@@ -43,8 +43,8 @@ observation_space:
       description: The full text body content of the incoming email.
     urgency_score:
       type: number
-      exclusiveMinimum: 0.0
-      exclusiveMaximum: 1.0
+      minimum: 0.01
+      maximum: 0.99
       description: A pre-calculated priority metric strictly between 0.0 (low) and 1.0 (critical).
     sentiment:
       type: string
@@ -75,8 +75,8 @@ observation_space:
 
 reward:
   type: number
-  exclusiveMinimum: 0.0
-  exclusiveMaximum: 1.0
+  minimum: 0.01
+  maximum: 0.99
   description: Dense deterministic reward strictly between 0 and 1, calculating classification accuracy, routing correctness, reply relevance, workflow efficiency, and safety penalties for invalid or unsafe actions.
 
 tasks:
