@@ -78,7 +78,7 @@ def get_action_from_llm(obs: dict) -> dict:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.0,
+            temperature=0.01,
             max_tokens=150,
             response_format={"type": "json_object"}
         )
@@ -143,7 +143,7 @@ def run_task(task_id: str) -> float:
 
 
 if __name__ == "__main__":
-    total_score = 0.0
+    total_score = 0.01
     scores: Dict[str, float] = {}
 
     for task in TASKS_TO_RUN:

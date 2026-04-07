@@ -39,7 +39,7 @@ class EmailEnv:
         if self.is_done:
             return StepResponse(
                 observation=self.current_obs,
-                reward=Reward(score=0.01, breakdown={"penalties": -1.0}),
+                reward=Reward(score=0.01, breakdown={"penalties": -0.99}),
                 done=True,
                 info={"error": "Episode already done"}
             )
@@ -48,7 +48,7 @@ class EmailEnv:
             self.is_done = True
             return StepResponse(
                 observation=self.current_obs,
-                reward=Reward(score=0.01, breakdown={"penalties": -1.0}),
+                reward=Reward(score=0.01, breakdown={"penalties": -0.99}),
                 done=True,
                 info={"error": "Invalid action_type", "reason": f"{action.action_type} is not allowed"}
             )
@@ -120,9 +120,9 @@ class EmailEnv:
         if self.step_count >= MAX_STEPS or task_complete or loop_detected:
             self.is_done = True
             if loop_detected:
-                reward.score = clamp_score(reward.score - 1.0)
-                penalties = reward.breakdown.get("penalties", 0.0)
-                reward.breakdown["penalties"] = max(-1.0, penalties - 1.0)
+                reward.score = clamp_score(reward.score - 0.99)
+                penalties = reward.breakdown.get("penalties", 0.01)
+                reward.breakdown["penalties"] = max(-0.99, penalties - 0.99)
                 info["reason"] = "Loop detected"
                 info["loop_pattern"] = loop_pattern
             elif self.step_count >= MAX_STEPS:
@@ -158,7 +158,7 @@ env = EmailEnv()
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     response = StepResponse(
         observation=env.current_obs,
-        reward=Reward(score=0.01, breakdown={"penalties": -1.0}),
+        reward=Reward(score=0.01, breakdown={"penalties": -0.99}),
         done=True,
         info={"error": "Invalid action format received", "details": str(exc)}
     )
@@ -171,7 +171,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def generic_exception_handler(request: Request, exc: Exception):
     response = StepResponse(
         observation=env.current_obs,
-        reward=Reward(score=0.01, breakdown={"penalties": -1.0}),
+        reward=Reward(score=0.01, breakdown={"penalties": -0.99}),
         done=True,
         info={"error": "System crash averted", "details": str(exc)}
     )
