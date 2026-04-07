@@ -130,8 +130,8 @@ class EmailEnv:
             elif task_complete:
                 info["reason"] = "Task complete"
 
-        # Clamp reward to valid bounds
-        reward.score = max(0.01, min(0.99, round(float(reward.score), 4)))
+        # Final safety clamp: Ensure score is strictly between 0 and 1
+        reward.score = float(max(0.01, min(0.99, round(float(reward.score), 4))))
 
         return StepResponse(
             observation=self.current_obs,

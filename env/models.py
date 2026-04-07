@@ -12,7 +12,7 @@ class Observation(BaseModel):
     subject: str
     sender_type: str
     email_body: str
-    urgency_score: float = Field(ge=0.0, le=1.0)
+    urgency_score: float = Field(gt=0.0, lt=1.0)
     sentiment: str
     thread_history: List[str] = Field(default_factory=list)
     current_status: str
