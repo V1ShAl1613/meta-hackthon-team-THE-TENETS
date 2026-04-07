@@ -1,0 +1,19 @@
+[project]
+name = "meta-hackthon-team-the-tenets"
+version = "1.0.0"
+description = "Enterprise Email Triage & Workflow Simulation (EETWS)"
+authors = [
+    {name = "THE TENETS"}
+]
+dependencies = [
+    "openenv-core>=0.2.0",
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "openai",
+    "requests",
+    "python-dotenv"
+]
+
+[project.scripts]
+server = "server.app:main"

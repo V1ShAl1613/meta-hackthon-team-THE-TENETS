@@ -1,17 +1,20 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1
+ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
 WORKDIR /app
 
-COPY requirements.txt .
+RUN pip install uv
 
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen
 
 COPY env /app/env
+COPY server /app/server
 COPY inference.py /app/inference.py
 COPY openenv.yaml /app/openenv.yaml
 
 EXPOSE 7860
 
-CMD ["uvicorn", "env.environment:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
+CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
