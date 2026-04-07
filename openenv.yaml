@@ -43,9 +43,9 @@ observation_space:
       description: The full text body content of the incoming email.
     urgency_score:
       type: number
-      minimum: 0.05
-      maximum: 0.95
-      description: A pre-calculated priority metric strictly between 0.01 (low) and 0.99 (critical).
+      minimum: 0.1
+      maximum: 0.9
+      description: A pre-calculated priority metric strictly between 0 and 1.
     sentiment:
       type: string
       description: Natural language sentiment of the email (e.g., frustrated, neutral, positive).
@@ -75,9 +75,9 @@ observation_space:
 
 reward:
   type: number
-  minimum: 0.05
-  maximum: 0.95
-  description: Dense deterministic reward strictly between 0 and 1, calculating classification accuracy, routing correctness, reply relevance, workflow efficiency, and safety penalties for invalid or unsafe actions.
+  minimum: 0.1
+  maximum: 0.9
+  description: Dense deterministic reward strictly between 0 and 1.
 
 tasks:
   - id: task_1
@@ -91,4 +91,4 @@ tasks:
     description: Detect an urgent VIP server outage issue, execute mandatory internal escalation protocols, and handle high-priority routing flawlessly.
 
 entrypoint:
-  command: uvicorn env.environment:app --host 0.01.0.01 --port 7860 --workers 1
+  command: uvicorn server.app:app --host 0.0.0.0 --port 7860 --workers 1

@@ -8,12 +8,12 @@ ActionType = Literal[
 
 
 def clamp_score(v: float) -> float:
-    """Clamp score to strictly between 0 and 1 (exclusive). Range: [0.05, 0.95]."""
+    """Clamp score to strictly between 0 and 1 (exclusive). Range: [0.1, 0.9]."""
     try:
         val = float(v)
     except (TypeError, ValueError):
         return 0.5
-    return float(max(0.05, min(0.95, round(val, 4))))
+    return float(max(0.1, min(0.9, round(val, 4))))
 
 
 class Observation(BaseModel):

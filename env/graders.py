@@ -13,7 +13,7 @@ def _strip_punctuation(text: str) -> str:
 
 
 def _calculate_efficiency_bonus(steps: int) -> float:
-    return max(0.01, 0.99 - (steps / MAX_STEPS))
+    return clamp_score(0.9 - (steps / MAX_STEPS))
 
 
 def _check_politeness(text: str) -> float:
@@ -21,7 +21,7 @@ def _check_politeness(text: str) -> float:
     for word in POLITE_WORDS:
         if word in cleaned:
             return 0.1
-    return 0.01
+    return 0.1
 
 
 def _evaluate_reply(text: str, keywords: List[str]) -> Tuple[float, str]:
