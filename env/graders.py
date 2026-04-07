@@ -1,6 +1,6 @@
 import re
 from typing import Dict, Any, List, Tuple
-from .models import Reward, Action
+from .models import Reward, Action, clamp_score
 
 MAX_STEPS = 8
 STEP_PENALTY = 0.03
@@ -93,8 +93,8 @@ def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     if not info_dict and breakdown["classification"] > 0:
         info_dict["suggestion"] = "Great job!"
 
-    score = max(0.01, min(0.99, float(score)))
-    return Reward(score=round(score, 4), breakdown=breakdown), info_dict
+    score = clamp_score(score)
+    return Reward(score=score, breakdown=breakdown), info_dict
 
 
 def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
@@ -188,8 +188,8 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure all required steps are completed appropriately."
 
-    score = max(0.01, min(0.99, float(score)))
-    return Reward(score=round(score, 4), breakdown=breakdown), info_dict
+    score = clamp_score(score)
+    return Reward(score=score, breakdown=breakdown), info_dict
 
 
 def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
@@ -292,8 +292,8 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure VIP emails are escalated explicitly."
 
-    score = max(0.01, min(0.99, float(score)))
-    return Reward(score=round(score, 4), breakdown=breakdown), info_dict
+    score = clamp_score(score)
+    return Reward(score=score, breakdown=breakdown), info_dict
 
 
 def calculate_reward(task_id: str, action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:

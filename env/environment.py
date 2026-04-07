@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from .models import Observation, Action, Reward, StepResponse, ResetRequest
+from .models import Observation, Action, Reward, StepResponse, ResetRequest, clamp_score
 from .tasks import TASKS
 from .graders import calculate_reward, MAX_STEPS
 
@@ -120,7 +120,7 @@ class EmailEnv:
         if self.step_count >= MAX_STEPS or task_complete or loop_detected:
             self.is_done = True
             if loop_detected:
-                reward.score = max(0.01, reward.score - 1.0)
+                reward.score = clamp_score(reward.score - 1.0)
                 penalties = reward.breakdown.get("penalties", 0.0)
                 reward.breakdown["penalties"] = max(-1.0, penalties - 1.0)
                 info["reason"] = "Loop detected"
@@ -131,7 +131,7 @@ class EmailEnv:
                 info["reason"] = "Task complete"
 
         # Final safety clamp: Ensure score is strictly between 0 and 1
-        reward.score = float(max(0.01, min(0.99, round(float(reward.score), 4))))
+        reward.score = clamp_score(reward.score)
 
         return StepResponse(
             observation=self.current_obs,

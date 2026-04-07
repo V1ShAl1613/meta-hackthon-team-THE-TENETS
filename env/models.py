@@ -1,10 +1,15 @@
 from typing import Dict, Any, List, Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 ActionType = Literal[
     "classify_email", "route_to", "draft_reply",
     "escalate", "mark_spam", "request_more_info", "noop"
 ]
+
+
+def clamp_score(v: float) -> float:
+    """Clamp score to strictly between 0 and 1 (exclusive)."""
+    return float(max(0.01, min(0.99, round(float(v), 4))))
 
 
 class Observation(BaseModel):
@@ -25,8 +30,18 @@ class Action(BaseModel):
 
 
 class Reward(BaseModel):
-    score: float = Field(gt=0.0, lt=1.0, default=0.01)
+    score: float = Field(default=0.5)
     breakdown: Dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def clamp_score_range(cls, v: Any) -> float:
+        """Ensure score is always strictly between 0 and 1."""
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return 0.5
+        return clamp_score(v)
 
 
 class StepResponse(BaseModel):
