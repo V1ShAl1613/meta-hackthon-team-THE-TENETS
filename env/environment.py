@@ -39,7 +39,7 @@ class EmailEnv:
         if self.is_done:
             return StepResponse(
                 observation=self.current_obs,
-                reward=Reward(score=0.0, breakdown={"penalties": -1.0}),
+                reward=Reward(score=0.01, breakdown={"penalties": -1.0}),
                 done=True,
                 info={"error": "Episode already done"}
             )
@@ -48,7 +48,7 @@ class EmailEnv:
             self.is_done = True
             return StepResponse(
                 observation=self.current_obs,
-                reward=Reward(score=0.0, breakdown={"penalties": -1.0}),
+                reward=Reward(score=0.01, breakdown={"penalties": -1.0}),
                 done=True,
                 info={"error": "Invalid action_type", "reason": f"{action.action_type} is not allowed"}
             )
@@ -120,7 +120,7 @@ class EmailEnv:
         if self.step_count >= MAX_STEPS or task_complete or loop_detected:
             self.is_done = True
             if loop_detected:
-                reward.score = max(0.0, reward.score - 1.0)
+                reward.score = max(0.01, reward.score - 1.0)
                 penalties = reward.breakdown.get("penalties", 0.0)
                 reward.breakdown["penalties"] = max(-1.0, penalties - 1.0)
                 info["reason"] = "Loop detected"
@@ -131,7 +131,7 @@ class EmailEnv:
                 info["reason"] = "Task complete"
 
         # Clamp reward to valid bounds
-        reward.score = max(0.0, min(1.0, round(float(reward.score), 4)))
+        reward.score = max(0.01, min(0.99, round(float(reward.score), 4)))
 
         return StepResponse(
             observation=self.current_obs,
@@ -158,7 +158,7 @@ env = EmailEnv()
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     response = StepResponse(
         observation=env.current_obs,
-        reward=Reward(score=0.0, breakdown={"penalties": -1.0}),
+        reward=Reward(score=0.01, breakdown={"penalties": -1.0}),
         done=True,
         info={"error": "Invalid action format received", "details": str(exc)}
     )
@@ -171,7 +171,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def generic_exception_handler(request: Request, exc: Exception):
     response = StepResponse(
         observation=env.current_obs,
-        reward=Reward(score=0.0, breakdown={"penalties": -1.0}),
+        reward=Reward(score=0.01, breakdown={"penalties": -1.0}),
         done=True,
         info={"error": "System crash averted", "details": str(exc)}
     )
