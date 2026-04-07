@@ -1,14 +1,11 @@
-FROM python:3.12-slim
+FROM python:3.12.3-slim
 
 ENV PYTHONUNBUFFERED=1
-ENV UV_PROJECT_ENVIRONMENT=/usr/local
 
 WORKDIR /app
 
-RUN pip install uv
-
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY env /app/env
 COPY server /app/server
