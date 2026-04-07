@@ -130,20 +130,20 @@ def run_task(task_id: str) -> float:
         reward_dict = response.get("reward", {"score": 0.01})
         done = response.get("done", True)
 
-        score_now = reward_dict.get("score", 0.01) if isinstance(reward_dict, dict) else 0.01
-        score_now = max(0.01, min(0.99, float(score_now)))
+        score_now = reward_dict.get("score", 0.1) if isinstance(reward_dict, dict) else 0.1
+        score_now = max(0.05, min(0.95, float(score_now)))
         success = done and score_now > 0.5
         print(f"[STEP] reward={score_now:.4f} done={str(done).lower()} success={str(success).lower()}")
 
     print("[END]")
-    final_score = reward_dict.get("score", 0.01) if isinstance(reward_dict, dict) else 0.01
-    final_score = max(0.01, min(0.99, final_score))
+    final_score = reward_dict.get("score", 0.1) if isinstance(reward_dict, dict) else 0.1
+    final_score = max(0.05, min(0.95, final_score))
     print(f"Task {task_id} complete. Final score: {final_score}")
     return final_score
 
 
 if __name__ == "__main__":
-    total_score = 0.01
+    total_score = 0.0
     scores: Dict[str, float] = {}
 
     for task in TASKS_TO_RUN:

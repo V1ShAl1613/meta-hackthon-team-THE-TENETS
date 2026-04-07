@@ -47,14 +47,14 @@ def _evaluate_reply(text: str, keywords: List[str]) -> Tuple[float, str]:
 def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
     target = task_data["target_classification"]
 
-    score = 0.01
+    score = 0.1
     breakdown = {
-        "classification": 0.01,
-        "routing": 0.01,
-        "reply_quality": 0.01,
-        "efficiency": 0.01,
-        "bonus": 0.01,
-        "penalties": 0.01
+        "classification": 0.1,
+        "routing": 0.1,
+        "reply_quality": 0.1,
+        "efficiency": 0.1,
+        "bonus": 0.1,
+        "penalties": 0.0
     }
     info_dict = {}
     classifications = 0
@@ -102,14 +102,14 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     target_route = task_data["target_routing"]
     keywords = task_data["reply_keywords"]
 
-    score = 0.01
+    score = 0.1
     breakdown = {
-        "classification": 0.01,
-        "routing": 0.01,
-        "reply_quality": 0.01,
-        "efficiency": 0.01,
-        "bonus": 0.01,
-        "penalties": 0.01
+        "classification": 0.1,
+        "routing": 0.1,
+        "reply_quality": 0.1,
+        "efficiency": 0.1,
+        "bonus": 0.1,
+        "penalties": 0.0
     }
     info_dict = {}
 
@@ -197,14 +197,14 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     target_route = task_data["target_routing"]
     keywords = task_data["reply_keywords"]
 
-    score = 0.01
+    score = 0.1
     breakdown = {
-        "classification": 0.01,
-        "routing": 0.01,
-        "reply_quality": 0.01,
-        "efficiency": 0.01,
-        "bonus": 0.01,
-        "penalties": 0.01
+        "classification": 0.1,
+        "routing": 0.1,
+        "reply_quality": 0.1,
+        "efficiency": 0.1,
+        "bonus": 0.1,
+        "penalties": 0.0
     }
     info_dict = {}
 
@@ -304,4 +304,4 @@ def calculate_reward(task_id: str, action_history: List[Action], task_data: Dict
     elif task_id == "task_3":
         return grade_task_3(action_history, task_data)
     else:
-        return Reward(score=0.01, breakdown={"penalties": -0.99}), {"error": "Invalid task ID"}
+        return Reward(score=0.1, breakdown={"penalties": 0.05}), {"error": "Invalid task ID"}

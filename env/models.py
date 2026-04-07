@@ -8,8 +8,12 @@ ActionType = Literal[
 
 
 def clamp_score(v: float) -> float:
-    """Clamp score to strictly between 0 and 1 (exclusive)."""
-    return float(max(0.01, min(0.99, round(float(v), 4))))
+    """Clamp score to strictly between 0 and 1 (exclusive). Range: [0.05, 0.95]."""
+    try:
+        val = float(v)
+    except (TypeError, ValueError):
+        return 0.5
+    return float(max(0.05, min(0.95, round(val, 4))))
 
 
 class Observation(BaseModel):
@@ -17,7 +21,12 @@ class Observation(BaseModel):
     subject: str
     sender_type: str
     email_body: str
-    urgency_score: float = Field(ge=0.01, le=0.99)
+    urgency_score: float = Field(default=0.5)
+
+    @field_validator("urgency_score", mode="before")
+    @classmethod
+    def clamp_urgency(cls, v: Any) -> float:
+        return clamp_score(v)
     sentiment: str
     thread_history: List[str] = Field(default_factory=list)
     current_status: str
