@@ -93,7 +93,7 @@ def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     if not info_dict and breakdown["classification"] > 0:
         info_dict["suggestion"] = "Great job!"
 
-    score = max(0.0, min(1.0, float(score)))
+    score = max(0.01, min(0.99, float(score)))
     return Reward(score=round(score, 4), breakdown=breakdown), info_dict
 
 
@@ -188,7 +188,7 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure all required steps are completed appropriately."
 
-    score = max(0.0, min(1.0, float(score)))
+    score = max(0.01, min(0.99, float(score)))
     return Reward(score=round(score, 4), breakdown=breakdown), info_dict
 
 
@@ -292,7 +292,7 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure VIP emails are escalated explicitly."
 
-    score = max(0.0, min(1.0, float(score)))
+    score = max(0.01, min(0.99, float(score)))
     return Reward(score=round(score, 4), breakdown=breakdown), info_dict
 
 
@@ -304,4 +304,4 @@ def calculate_reward(task_id: str, action_history: List[Action], task_data: Dict
     elif task_id == "task_3":
         return grade_task_3(action_history, task_data)
     else:
-        return Reward(score=0.0, breakdown={"penalties": -1.0}), {"error": "Invalid task ID"}
+        return Reward(score=0.01, breakdown={"penalties": -1.0}), {"error": "Invalid task ID"}

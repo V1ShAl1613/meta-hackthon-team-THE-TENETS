@@ -62,7 +62,7 @@ def step_env(action: dict) -> dict:
         print(f"[ERROR] Step failed: {e}", file=sys.stderr)
         return {
             "observation": {},
-            "reward": {"score": 0.0, "breakdown": {}},
+            "reward": {"score": 0.01, "breakdown": {}},
             "done": True,
             "info": {"error": str(e)}
         }
@@ -113,13 +113,13 @@ def run_task(task_id: str) -> float:
 
     obs = reset_env(task_id)
     if not obs:
-        print("[STEP] reward=0.00 done=true success=false")
+        print("[STEP] reward=0.01 done=true success=false")
         print("[END]")
-        return 0.0
+        return 0.01
 
     done = False
     steps = 0
-    reward_dict: dict = {"score": 0.0}
+    reward_dict: dict = {"score": 0.01}
 
     while not done and steps < MAX_STEPS:
         steps += 1
@@ -127,15 +127,16 @@ def run_task(task_id: str) -> float:
 
         response = step_env(action)
         obs = response.get("observation", {})
-        reward_dict = response.get("reward", {"score": 0.0})
+        reward_dict = response.get("reward", {"score": 0.01})
         done = response.get("done", True)
 
-        score_now = reward_dict.get("score", 0.0) if isinstance(reward_dict, dict) else 0.0
+        score_now = reward_dict.get("score", 0.01) if isinstance(reward_dict, dict) else 0.01
         success = done and score_now > 0.5
         print(f"[STEP] reward={score_now:.2f} done={str(done).lower()} success={str(success).lower()}")
 
     print("[END]")
-    final_score = reward_dict.get("score", 0.0) if isinstance(reward_dict, dict) else 0.0
+    final_score = reward_dict.get("score", 0.01) if isinstance(reward_dict, dict) else 0.01
+    final_score = max(0.01, min(0.99, final_score))
     return final_score
 
 
