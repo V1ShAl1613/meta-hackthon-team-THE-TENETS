@@ -6,13 +6,13 @@ authors = [
     {name = "THE TENETS"}
 ]
 dependencies = [
-    "openenv-core>=0.2.0",
-    "fastapi",
-    "uvicorn",
-    "pydantic",
-    "openai",
-    "requests",
-    "python-dotenv"
+    "openenv-core==0.2.3",
+    "fastapi==0.135.3",
+    "uvicorn==0.44.0",
+    "pydantic==2.12.5",
+    "openai==2.30.0",
+    "requests==2.33.1",
+    "python-dotenv==1.2.2"
 ]
 
 [project.scripts]
