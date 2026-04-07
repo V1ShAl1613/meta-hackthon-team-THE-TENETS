@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import requests
 from typing import Dict, Any
@@ -47,7 +48,7 @@ def reset_env(task_id: str) -> dict:
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(f"[ERROR] Reset failed: {e}")
+        print(f"[ERROR] Reset failed: {e}", file=sys.stderr)
         return {}
 
 
@@ -58,7 +59,7 @@ def step_env(action: dict) -> dict:
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(f"[ERROR] Step failed: {e}")
+        print(f"[ERROR] Step failed: {e}", file=sys.stderr)
         return {
             "observation": {},
             "reward": {"score": 0.0, "breakdown": {}},
@@ -103,18 +104,17 @@ def get_action_from_llm(obs: dict) -> dict:
         return action_obj
 
     except Exception as e:
-        print(f"[ERROR] LLM call failed: {e}")
+        print(f"[ERROR] LLM call failed: {e}", file=sys.stderr)
         return dict(NOOP_ACTION)
 
 
 def run_task(task_id: str) -> float:
-    print(f"\n{'='*40}")
-    print(f"Starting {task_id}")
-    print(f"{'='*40}")
+    print("[START]")
 
     obs = reset_env(task_id)
     if not obs:
-        print(f"[WARN] Failed to initialize environment for {task_id}.")
+        print("[STEP] reward=0.00 done=true success=false")
+        print("[END]")
         return 0.0
 
     done = False
@@ -124,20 +124,18 @@ def run_task(task_id: str) -> float:
     while not done and steps < MAX_STEPS:
         steps += 1
         action = get_action_from_llm(obs)
-        print(f"  Step {steps} | Action: {action}")
 
         response = step_env(action)
         obs = response.get("observation", {})
         reward_dict = response.get("reward", {"score": 0.0})
         done = response.get("done", True)
-        info = response.get("info", {})
 
         score_now = reward_dict.get("score", 0.0) if isinstance(reward_dict, dict) else 0.0
-        print(f"  Score: {score_now} | Info: {info}")
-        print(f"  {'-'*36}")
+        success = done and score_now > 0.5
+        print(f"[STEP] reward={score_now:.2f} done={str(done).lower()} success={str(success).lower()}")
 
+    print("[END]")
     final_score = reward_dict.get("score", 0.0) if isinstance(reward_dict, dict) else 0.0
-    print(f"Task {task_id} complete. Final score: {final_score}")
     return final_score
 
 
@@ -149,16 +147,3 @@ if __name__ == "__main__":
         score = run_task(task)
         scores[task] = score
         total_score += score
-
-    print(f"\n\n{'='*40}")
-    print("FINAL RESULTS")
-    print(f"{'='*40}")
-    for t, s in scores.items():
-        print(f"  {t}: {s}")
-
-    avg_score = total_score / len(TASKS_TO_RUN) if TASKS_TO_RUN else 0.0
-    print(f"\nAverage Score: {avg_score:.4f}")
-    if avg_score >= 0.8:
-        print("Result: PASS — Agent performed well.")
-    else:
-        print("Result: NEEDS IMPROVEMENT — Agent performance is below threshold.")
