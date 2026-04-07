@@ -138,6 +138,7 @@ def run_task(task_id: str) -> float:
     print("[END]")
     final_score = reward_dict.get("score", 0.01) if isinstance(reward_dict, dict) else 0.01
     final_score = max(0.01, min(0.99, final_score))
+    print(f"Task {task_id} complete. Final score: {final_score}")
     return final_score
 
 
@@ -149,3 +150,12 @@ if __name__ == "__main__":
         score = run_task(task)
         scores[task] = score
         total_score += score
+
+    avg_score = total_score / len(TASKS_TO_RUN)
+    print(f"\nAverage Score: {avg_score:.4f}")
+    if avg_score > 0.8:
+        print("Result: EXCELLENT - Agent performs exceptionally well.")
+    elif avg_score > 0.5:
+        print("Result: ADEQUATE - Agent performs well but has room for improvement.")
+    else:
+        print("Result: NEEDS IMPROVEMENT - Agent performance is below threshold.")
