@@ -1,5 +1,5 @@
 name: openenv-email-triage
-version: 1.0.0
+version: 0.99.0
 description: Enterprise Email Triage & Workflow Simulation (EETWS)
 
 action_space:
@@ -43,9 +43,9 @@ observation_space:
       description: The full text body content of the incoming email.
     urgency_score:
       type: number
-      exclusiveMinimum: 0.0
-      exclusiveMaximum: 1.0
-      description: A pre-calculated priority metric ranging strictly between 0.0 (low) and 1.0 (critical).
+      minimum: 0.01
+      maximum: 0.99
+      description: A pre-calculated priority metric strictly between 0 and 1.
     sentiment:
       type: string
       description: Natural language sentiment of the email (e.g., frustrated, neutral, positive).
@@ -75,9 +75,9 @@ observation_space:
 
 reward:
   type: number
-  exclusiveMinimum: 0.0
-  exclusiveMaximum: 1.0
-  description: Dense deterministic reward calculating classification accuracy, routing correctness, reply relevance, workflow efficiency, and safety penalties for invalid or unsafe actions, always strictly between 0.0 and 1.0.
+  minimum: 0.01
+  maximum: 0.99
+  description: Dense deterministic reward strictly between 0 and 1.
 
 tasks:
   - id: task_1
@@ -91,4 +91,4 @@ tasks:
     description: Detect an urgent VIP server outage issue, execute mandatory internal escalation protocols, and handle high-priority routing flawlessly.
 
 entrypoint:
-  command: uvicorn env.environment:app --host 0.0.0.0 --port 7860 --workers 1
+  command: uvicorn server.app:app --host 0.0.0.0 --port 7860 --workers 1

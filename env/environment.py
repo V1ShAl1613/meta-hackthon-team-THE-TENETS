@@ -5,9 +5,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from .models import Observation, Action, Reward, StepResponse, ResetRequest
+from .models import (
+    Observation, Action, Reward, StepResponse, ResetRequest,
+    clamp_score, clamp_breakdown, SCORE_MIN, SCORE_MAX,
+)
 from .tasks import TASKS
-from .graders import calculate_reward, MAX_STEPS, MIN_SCORE, MAX_SCORE
+from .graders import calculate_reward, MAX_STEPS
 
 ALLOWED_ACTIONS = [
     "classify_email", "route_to", "draft_reply",
@@ -15,9 +18,9 @@ ALLOWED_ACTIONS = [
 ]
 
 
-def _normalize_score(score: float) -> float:
-    """Keep emitted rewards strictly inside the open interval (0, 1)."""
-    return max(MIN_SCORE, min(MAX_SCORE, round(float(score), 4)))
+def _safe_reward(score: float, breakdown: Dict[str, float]) -> Reward:
+    """Build a Reward with all values clamped."""
+    return Reward(score=clamp_score(score), breakdown=clamp_breakdown(breakdown))
 
 
 class EmailEnv:
@@ -44,7 +47,7 @@ class EmailEnv:
         if self.is_done:
             return StepResponse(
                 observation=self.current_obs,
-                reward=Reward(score=MIN_SCORE, breakdown={"penalties": -1.0}),
+                reward=_safe_reward(SCORE_MIN, {"penalties": 0.5}),
                 done=True,
                 info={"error": "Episode already done"}
             )
@@ -53,7 +56,7 @@ class EmailEnv:
             self.is_done = True
             return StepResponse(
                 observation=self.current_obs,
-                reward=Reward(score=MIN_SCORE, breakdown={"penalties": -1.0}),
+                reward=_safe_reward(SCORE_MIN, {"penalties": 0.5}),
                 done=True,
                 info={"error": "Invalid action_type", "reason": f"{action.action_type} is not allowed"}
             )
@@ -125,9 +128,10 @@ class EmailEnv:
         if self.step_count >= MAX_STEPS or task_complete or loop_detected:
             self.is_done = True
             if loop_detected:
-                reward.score = max(MIN_SCORE, reward.score - 1.0)
-                penalties = reward.breakdown.get("penalties", 0.0)
-                reward.breakdown["penalties"] = max(-1.0, penalties - 1.0)
+                reward.score = clamp_score(reward.score - 0.3)
+                reward.breakdown["penalties"] = clamp_score(
+                    reward.breakdown.get("penalties", SCORE_MIN) + 0.3
+                )
                 info["reason"] = "Loop detected"
                 info["loop_pattern"] = loop_pattern
             elif self.step_count >= MAX_STEPS:
@@ -135,8 +139,9 @@ class EmailEnv:
             elif task_complete:
                 info["reason"] = "Task complete"
 
-        # Clamp reward to valid bounds
-        reward.score = _normalize_score(reward.score)
+        # ── Final safety net: clamp score AND breakdown once more ──
+        reward.score = clamp_score(reward.score)
+        reward.breakdown = clamp_breakdown(reward.breakdown)
 
         return StepResponse(
             observation=self.current_obs,
@@ -163,7 +168,7 @@ env = EmailEnv()
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     response = StepResponse(
         observation=env.current_obs,
-        reward=Reward(score=MIN_SCORE, breakdown={"penalties": -1.0}),
+        reward=_safe_reward(SCORE_MIN, {"penalties": 0.5}),
         done=True,
         info={"error": "Invalid action format received", "details": str(exc)}
     )
@@ -176,7 +181,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def generic_exception_handler(request: Request, exc: Exception):
     response = StepResponse(
         observation=env.current_obs,
-        reward=Reward(score=MIN_SCORE, breakdown={"penalties": -1.0}),
+        reward=_safe_reward(SCORE_MIN, {"penalties": 0.5}),
         done=True,
         info={"error": "System crash averted", "details": str(exc)}
     )
@@ -201,3 +206,7 @@ def step_endpoint(action: Action):
 @app.get("/state")
 def state_endpoint():
     return env.state()
+
+@app.get("/")
+def health_check():
+    return {"status": "ok", "message": "Enterprise Email Triage Environment Operational"}

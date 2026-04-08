@@ -1,3 +1,12 @@
+---
+title: OpenEnv Email Triage
+emoji: 📧
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+tags: [openenv]
+---
 # OpenEnv: Enterprise Email Triage & Workflow Simulation (EETWS)
 
 A deterministic reinforcement learning benchmark for evaluating AI agents on enterprise email triage workflows — classification, routing, escalation, and safe reply drafting.
@@ -250,3 +259,20 @@ python inference.py
 ├── Dockerfile               # Container build configuration
 └── README.md
 ```
+
+---
+
+## Pre-Validation Checklist
+
+Before submitting to the hackathon, ensure the following are validated:
+- [x] HF Space returns `200` on the root (`/`) path.
+- [x] `reset()` endpoint works remotely via `POST /reset`.
+- [x] `step()`, `reset()`, and `state()` are callable.
+- [x] `openenv.yaml` is valid and present in the ROOT directory.
+- [x] Typed Pydantic models are implemented for Observations, Actions, and Rewards.
+- [x] `Dockerfile` builds successfully and exposes port 7860.
+- [x] `inference.py` is at the root and runs automatically without manual input.
+- [x] `inference.py` uses `API_BASE_URL`, `MODEL_NAME`, and `HF_TOKEN` from the environment.
+- [x] At least 3 tasks are defined (Easy, Medium, Hard).
+- [x] Graders return a bounded float value in `[0.0, 1.0]`.
+- [x] Reward function provides partial progress signals (dense reward).
