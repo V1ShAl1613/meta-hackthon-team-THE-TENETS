@@ -9,9 +9,10 @@ ActionType = Literal[
 ]
 
 
-# Keep scores strictly inside (0, 1) while matching openenv.yaml bounds.
-SCORE_MIN = 0.0001
-SCORE_MAX = 0.9999
+# Keep scores safely away from numeric boundaries so downstream rounding
+# can never produce 0.0 or 1.0.
+SCORE_MIN = 0.01
+SCORE_MAX = 0.99
 
 
 def enforce_valid_score(score: Any) -> float:

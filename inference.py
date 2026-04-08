@@ -20,13 +20,13 @@ TASKS_TO_RUN = ["task_1", "task_2", "task_3"]
 MAX_STEPS = 8
 REQUEST_TIMEOUT = 30
 
-# ── Force strictly between 0 and 1 ──
-SCORE_MIN = 0.0001
-SCORE_MAX = 0.9999
+# ── Force strictly between 0 and 1 with a safety margin ──
+SCORE_MIN = 0.01
+SCORE_MAX = 0.99
 SCORE_DEFAULT = 0.5
 
 def enforce_valid_score(score: Any) -> float:
-    """Clamp arbitrary input into the repo's safe score band [0.0001, 0.9999]."""
+    """Clamp arbitrary input into the repo's safe score band [0.01, 0.99]."""
     try:
         score = float(score)
         if score != score:  # NaN
