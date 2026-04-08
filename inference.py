@@ -1,8 +1,9 @@
 import os
 import sys
 import json
+import logging
 import requests
-from typing import Dict, Any
+from typing import Dict, Any, List
 from openai import OpenAI
 
 API_BASE_URL = os.getenv("API_BASE_URL")
@@ -20,18 +21,33 @@ TASKS_TO_RUN = ["task_1", "task_2", "task_3"]
 MAX_STEPS = 8
 REQUEST_TIMEOUT = 30
 
-# ── Strict bounds: scores never touch 0.0 or 1.0 ──────────────────
-SCORE_MIN = 0.1
-SCORE_MAX = 0.9
+# ── Force strictly between 0 and 1 ──
+SCORE_MIN = 0.01
+SCORE_MAX = 0.99
 
-
-def _clamp(v: float) -> float:
-    """Clamp a score to the safe open interval (0, 1) → [0.1, 0.9]."""
+def enforce_valid_score(score: Any) -> float:
+    """Universal enforcement function to guarantee 0 < score < 1."""
     try:
-        return max(SCORE_MIN, min(SCORE_MAX, round(float(v), 4)))
-    except (TypeError, ValueError):
+        score = float(score)
+        if score != score:  # NaN
+            return 0.5
+    except:
         return 0.5
 
+    if score <= 0:
+        return 0.01
+    elif score >= 1:
+        return 0.99
+    return score
+
+def validate_scores(scores: List[float]):
+    """Strict validation gate before final submission."""
+    for s in scores:
+        if not (0 < s < 1):
+            raise ValueError(f"Invalid score detected: {s}")
+
+def _clamp(v: float) -> float:
+    return enforce_valid_score(v)
 
 SYSTEM_PROMPT = """You are an Enterprise Email Agent.
 Your goal is to handle incoming emails appropriately.
@@ -39,20 +55,10 @@ Allowed Actions: classify_email, route_to, draft_reply, escalate, mark_spam, req
 
 You MUST respond strictly in valid JSON format containing two keys: "action_type" and "arguments".
 
-Example 1:
-{"action_type": "classify_email", "arguments": {"category": "support"}}
-
-Example 2:
-{"action_type": "route_to", "arguments": {"department": "sales_department"}}
-
-Example 3:
-{"action_type": "draft_reply", "arguments": {"text": "We are looking into this immediate issue."}}
-
-Always choose the most relevant action. Avoid unnecessary actions.
+IMPORTANT: Return ONLY a float strictly between 0 and 1 (never 0 or 1) if asked for any numeric metrics. Example: 0.73
 """
 
 NOOP_ACTION = {"action_type": "noop", "arguments": {}}
-
 
 def reset_env(task_id: str) -> dict:
     url = f"{ENV_BASE_URL}/reset"
@@ -63,7 +69,6 @@ def reset_env(task_id: str) -> dict:
     except Exception as e:
         print(f"[ERROR] Reset failed: {e}", file=sys.stderr)
         return {}
-
 
 def step_env(action: dict) -> dict:
     url = f"{ENV_BASE_URL}/step"
@@ -79,7 +84,6 @@ def step_env(action: dict) -> dict:
             "done": True,
             "info": {"error": str(e)}
         }
-
 
 def get_action_from_llm(obs: dict) -> dict:
     prompt = f"Current Observation: {json.dumps(obs, indent=2)}\n\nWhat action will you take next? Reply ONLY with JSON."
@@ -120,9 +124,8 @@ def get_action_from_llm(obs: dict) -> dict:
         print(f"[ERROR] LLM call failed: {e}", file=sys.stderr)
         return dict(NOOP_ACTION)
 
-
 def run_task(task_id: str) -> float:
-    print("[START]")
+    print(f"[START] {task_id}")
 
     obs = reset_env(task_id)
     if not obs:
@@ -144,16 +147,14 @@ def run_task(task_id: str) -> float:
         done = response.get("done", True)
 
         score_now = reward_dict.get("score", SCORE_MIN) if isinstance(reward_dict, dict) else SCORE_MIN
-        score_now = _clamp(score_now)
+        score_now = enforce_valid_score(score_now)
         success = done and score_now > 0.5
-        print(f"[STEP] reward={score_now:.4f} done={str(done).lower()} success={str(success).lower()}")
+        print(f"[STEP] reward={score_now:.4f} done={str(done).lower()} success={str(success).lower()} source=environment")
 
-    print("[END]")
     final_score = reward_dict.get("score", SCORE_MIN) if isinstance(reward_dict, dict) else SCORE_MIN
-    final_score = _clamp(final_score)
-    print(f"Task {task_id} complete. Final score: {final_score}")
+    final_score = enforce_valid_score(final_score)
+    print(f"[END] Task {task_id} complete. Final score: {final_score}")
     return final_score
-
 
 if __name__ == "__main__":
     total_score = 0.0
@@ -164,7 +165,12 @@ if __name__ == "__main__":
         scores[task] = score
         total_score += score
 
+    # Strict validation gate
+    validate_scores(list(scores.values()))
+
     avg_score = total_score / len(TASKS_TO_RUN)
+    avg_score = enforce_valid_score(avg_score)
+    
     print(f"\nAverage Score: {avg_score:.4f}")
     if avg_score > 0.8:
         print("Result: EXCELLENT - Agent performs exceptionally well.")
