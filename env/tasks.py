@@ -1,6 +1,7 @@
 from typing import Dict, Any
 from .models import Observation
 
+
 TASKS = {
     "task_1": {
         "description": "Classify email correctly (Easy)",

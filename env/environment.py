@@ -7,10 +7,11 @@ from fastapi.exceptions import RequestValidationError
 
 from .models import (
     Observation, Action, Reward, StepResponse, ResetRequest,
-    clamp_score, clamp_breakdown, SCORE_MIN,
+    clamp_score, clamp_breakdown, SCORE_MIN, SCORE_MAX, enforce_valid_score,
 )
 from .tasks import TASKS
 from .graders import calculate_reward, MAX_STEPS
+
 
 ALLOWED_ACTIONS = [
     "classify_email", "route_to", "draft_reply",
@@ -20,7 +21,10 @@ ALLOWED_ACTIONS = [
 
 def _safe_reward(score: float, breakdown: Dict[str, float]) -> Reward:
     """Build a Reward with all values clamped."""
-    return Reward(score=clamp_score(score), breakdown=clamp_breakdown(breakdown))
+    return Reward(
+        score=enforce_valid_score(score),
+        breakdown=clamp_breakdown(breakdown)
+    )
 
 
 class EmailEnv:
@@ -65,7 +69,6 @@ class EmailEnv:
         self.action_history.append(action)
         self.current_obs.previous_actions = self.current_obs.previous_actions + [action.action_type]
 
-        # Update state based on action
         if action.action_type == "classify_email":
             val = action.arguments.get("category", "unknown")
             self.current_obs.current_status = f"classified: {val}"
@@ -83,7 +86,6 @@ class EmailEnv:
 
         task_data = TASKS[self.task_id]
 
-        # Loop detection
         loop_detected = False
         loop_pattern = None
 
@@ -95,6 +97,7 @@ class EmailEnv:
             if last_four[0] == last_four[2] and last_four[1] == last_four[3]:
                 loop_detected = True
                 loop_pattern = "alternating_pattern"
+
         if not loop_detected and len(self.action_history) >= 2:
             last_two = [_action_key(a) for a in self.action_history[-2:]]
             if last_two[0] == last_two[1]:
@@ -103,9 +106,9 @@ class EmailEnv:
 
         reward, info_additions = calculate_reward(self.task_id, self.action_history, task_data)
 
-        # Task completion checks
         history_types = [a.action_type for a in self.action_history]
         task_complete = False
+
         if self.task_id == "task_1" and action.action_type == "classify_email":
             task_complete = True
         elif self.task_id == "task_2" and action.action_type == "draft_reply":
@@ -127,8 +130,9 @@ class EmailEnv:
 
         if self.step_count >= MAX_STEPS or task_complete or loop_detected:
             self.is_done = True
+
             if loop_detected:
-                reward.score = clamp_score(reward.score - 0.3)
+                reward.score = enforce_valid_score(reward.score - 0.3)
                 reward.breakdown["penalties"] = clamp_score(
                     reward.breakdown.get("penalties", SCORE_MIN) + 0.3
                 )
@@ -139,8 +143,7 @@ class EmailEnv:
             elif task_complete:
                 info["reason"] = "Task complete"
 
-        # ── Final safety net: clamp score AND breakdown once more ──
-        reward.score = clamp_score(reward.score)
+        reward.score = enforce_valid_score(reward.score)
         reward.breakdown = clamp_breakdown(reward.breakdown)
 
         return StepResponse(
@@ -155,7 +158,10 @@ class EmailEnv:
             "task_id": self.task_id,
             "step": self.step_count,
             "done": self.is_done,
-            "action_history": [{"action_type": a.action_type, "arguments": a.arguments} for a in self.action_history],
+            "action_history": [
+                {"action_type": a.action_type, "arguments": a.arguments}
+                for a in self.action_history
+            ],
             "current_observation": self.current_obs.model_dump() if hasattr(self.current_obs, "model_dump") else self.current_obs.dict()
         }
 
@@ -200,12 +206,15 @@ def reset_endpoint(req: Optional[ResetRequest] = None):
 @app.post("/step")
 def step_endpoint(action: Action):
     result = env.step(action)
+    result.reward.score = enforce_valid_score(result.reward.score)
+    result.reward.breakdown = clamp_breakdown(result.reward.breakdown)
     return result.model_dump() if hasattr(result, "model_dump") else result.dict()
 
 
 @app.get("/state")
 def state_endpoint():
     return env.state()
+
 
 @app.get("/")
 def health_check():
