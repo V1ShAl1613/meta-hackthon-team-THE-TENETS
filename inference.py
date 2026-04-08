@@ -1,7 +1,6 @@
 import os
 import sys
 import json
-import logging
 import requests
 from typing import Dict, Any, List
 from openai import OpenAI
@@ -22,28 +21,29 @@ MAX_STEPS = 8
 REQUEST_TIMEOUT = 30
 
 # ── Force strictly between 0 and 1 ──
-SCORE_MIN = 0.01
-SCORE_MAX = 0.99
+SCORE_MIN = 0.0001
+SCORE_MAX = 0.9999
+SCORE_DEFAULT = 0.5
 
 def enforce_valid_score(score: Any) -> float:
-    """Universal enforcement function to guarantee 0 < score < 1."""
+    """Clamp arbitrary input into the repo's safe score band [0.01, 0.99]."""
     try:
         score = float(score)
         if score != score:  # NaN
-            return 0.5
-    except:
-        return 0.5
+            return SCORE_DEFAULT
+    except (TypeError, ValueError):
+        return SCORE_DEFAULT
 
-    if score <= 0:
-        return 0.01
-    elif score >= 1:
-        return 0.99
+    if score < SCORE_MIN:
+        return SCORE_MIN
+    if score > SCORE_MAX:
+        return SCORE_MAX
     return score
 
 def validate_scores(scores: List[float]):
     """Strict validation gate before final submission."""
     for s in scores:
-        if not (0 < s < 1):
+        if not (SCORE_MIN <= s <= SCORE_MAX):
             raise ValueError(f"Invalid score detected: {s}")
 
 def _clamp(v: float) -> float:

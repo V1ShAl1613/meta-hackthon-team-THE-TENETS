@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 
 from .models import (
     Observation, Action, Reward, StepResponse, ResetRequest,
-    clamp_score, clamp_breakdown, SCORE_MIN, SCORE_MAX,
+    clamp_score, clamp_breakdown, SCORE_MIN,
 )
 from .tasks import TASKS
 from .graders import calculate_reward, MAX_STEPS
