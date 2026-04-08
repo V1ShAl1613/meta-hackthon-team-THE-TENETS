@@ -14,6 +14,8 @@ client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 TASKS_TO_RUN = ["task_1", "task_2", "task_3"]
 MAX_STEPS = 8
 REQUEST_TIMEOUT = 30
+MIN_SCORE = 0.0001
+MAX_SCORE = 0.9999
 
 SYSTEM_PROMPT = """You are an Enterprise Email Agent.
 Your goal is to handle incoming emails appropriately.
@@ -34,6 +36,10 @@ Always choose the most relevant action. Avoid unnecessary actions.
 """
 
 NOOP_ACTION = {"action_type": "noop", "arguments": {}}
+
+
+def normalize_score(score: float) -> float:
+    return max(MIN_SCORE, min(MAX_SCORE, round(float(score), 4)))
 
 
 def reset_env(task_id: str) -> dict:
@@ -57,7 +63,7 @@ def step_env(action: dict) -> dict:
         print(f"[ERROR] Step failed: {e}")
         return {
             "observation": {},
-            "reward": {"score": 0.0, "breakdown": {}},
+            "reward": {"score": MIN_SCORE, "breakdown": {}},
             "done": True,
             "info": {"error": str(e)}
         }
@@ -111,11 +117,11 @@ def run_task(task_id: str) -> float:
     obs = reset_env(task_id)
     if not obs:
         print(f"[WARN] Failed to initialize environment for {task_id}.")
-        return 0.0
+        return MIN_SCORE
 
     done = False
     steps = 0
-    reward_dict: dict = {"score": 0.0}
+    reward_dict: dict = {"score": MIN_SCORE}
 
     while not done and steps < MAX_STEPS:
         steps += 1
@@ -124,15 +130,17 @@ def run_task(task_id: str) -> float:
 
         response = step_env(action)
         obs = response.get("observation", {})
-        reward_dict = response.get("reward", {"score": 0.0})
+        reward_dict = response.get("reward", {"score": MIN_SCORE})
         done = response.get("done", True)
         info = response.get("info", {})
 
-        score_now = reward_dict.get("score", 0.0) if isinstance(reward_dict, dict) else 0.0
+        score_now = reward_dict.get("score", MIN_SCORE) if isinstance(reward_dict, dict) else MIN_SCORE
+        score_now = normalize_score(score_now)
         print(f"  Score: {score_now} | Info: {info}")
         print(f"  {'-'*36}")
 
-    final_score = reward_dict.get("score", 0.0) if isinstance(reward_dict, dict) else 0.0
+    final_score = reward_dict.get("score", MIN_SCORE) if isinstance(reward_dict, dict) else MIN_SCORE
+    final_score = normalize_score(final_score)
     print(f"Task {task_id} complete. Final score: {final_score}")
     return final_score
 

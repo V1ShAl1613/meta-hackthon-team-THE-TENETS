@@ -5,6 +5,8 @@ from .models import Reward, Action
 MAX_STEPS = 8
 STEP_PENALTY = 0.03
 POLITE_WORDS = ["please", "thank", "appreciate", "sorry", "apologies"]
+MIN_SCORE = 0.0001
+MAX_SCORE = 0.9999
 
 
 def _strip_punctuation(text: str) -> str:
@@ -14,6 +16,11 @@ def _strip_punctuation(text: str) -> str:
 
 def _calculate_efficiency_bonus(steps: int) -> float:
     return max(0.0, 1.0 - (steps / MAX_STEPS))
+
+
+def _normalize_score(score: float) -> float:
+    """Keep task scores strictly inside the open interval (0, 1)."""
+    return max(MIN_SCORE, min(MAX_SCORE, float(score)))
 
 
 def _check_politeness(text: str) -> float:
@@ -93,7 +100,7 @@ def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     if not info_dict and breakdown["classification"] > 0:
         info_dict["suggestion"] = "Great job!"
 
-    score = max(0.0, min(1.0, float(score)))
+    score = _normalize_score(score)
     return Reward(score=round(score, 4), breakdown=breakdown), info_dict
 
 
@@ -188,7 +195,7 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure all required steps are completed appropriately."
 
-    score = max(0.0, min(1.0, float(score)))
+    score = _normalize_score(score)
     return Reward(score=round(score, 4), breakdown=breakdown), info_dict
 
 
@@ -292,7 +299,7 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure VIP emails are escalated explicitly."
 
-    score = max(0.0, min(1.0, float(score)))
+    score = _normalize_score(score)
     return Reward(score=round(score, 4), breakdown=breakdown), info_dict
 
 
@@ -304,4 +311,4 @@ def calculate_reward(task_id: str, action_history: List[Action], task_data: Dict
     elif task_id == "task_3":
         return grade_task_3(action_history, task_data)
     else:
-        return Reward(score=0.0, breakdown={"penalties": -1.0}), {"error": "Invalid task ID"}
+        return Reward(score=MIN_SCORE, breakdown={"penalties": -1.0}), {"error": "Invalid task ID"}
