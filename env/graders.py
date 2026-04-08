@@ -1,6 +1,6 @@
 import re
 from typing import Dict, Any, List, Tuple
-from .models import Reward, Action, clamp_score
+from .models import Reward, Action, clamp_score, clamp_breakdown, SCORE_MIN, SCORE_MAX
 
 MAX_STEPS = 8
 STEP_PENALTY = 0.03
@@ -25,23 +25,33 @@ def _check_politeness(text: str) -> float:
 
 
 def _evaluate_reply(text: str, keywords: List[str]) -> Tuple[float, str]:
+    """Evaluate reply quality. Returns (score_delta, mistake_message).
+
+    IMPORTANT: All returned deltas are >= 0 to prevent the main score
+    from going negative.  A poor reply simply earns 0 bonus.
+    """
     cleaned = _strip_punctuation(text.lower())
     words = cleaned.split()
     if not words:
-        return -0.2, "Reply is empty."
+        return 0.0, "Reply is empty."
 
     words_set = set(words)
     matches = sum(1 for kw in keywords if kw.lower() in words_set)
     if matches == 0:
-        return -0.3, "Reply missing required keywords."
+        return 0.0, "Reply missing required keywords."
 
     relevance = matches / len(words)
     if relevance < 0.05 and len(words) > 30:
-        return -0.1, "Reply is too verbose or lacks density."
+        return 0.0, "Reply is too verbose or lacks density."
 
     base = 0.3
     bonus = min(0.2, matches * 0.05)
     return base + bonus, ""
+
+
+def _safe_reward(score: float, breakdown: Dict[str, float]) -> Reward:
+    """Build a Reward with all values clamped. Single exit point for safety."""
+    return Reward(score=clamp_score(score), breakdown=clamp_breakdown(breakdown))
 
 
 def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
@@ -54,7 +64,7 @@ def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
         "reply_quality": 0.1,
         "efficiency": 0.1,
         "bonus": 0.1,
-        "penalties": 0.0
+        "penalties": 0.1
     }
     info_dict = {}
     classifications = 0
@@ -65,36 +75,34 @@ def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
             cat = act.arguments.get("category", "")
             if cat and cat.strip().lower() == target.lower():
                 if classifications == 1:
-                    score += 0.8
-                    breakdown["classification"] = 0.8
-                    breakdown["bonus"] += 0.1
+                    score += 0.6
+                    breakdown["classification"] = 0.7
+                    breakdown["bonus"] = 0.2
                     score += 0.1
             else:
-                score -= 0.2
-                breakdown["penalties"] -= 0.2
+                score = max(score - 0.15, SCORE_MIN)
+                breakdown["penalties"] = 0.3
                 info_dict["mistake"] = f"Incorrect classification: {cat}"
                 info_dict["expected"] = target
                 info_dict["suggestion"] = "Ensure you classify the email correctly based on intent."
 
     if classifications > 1:
-        score -= 0.2
-        breakdown["penalties"] -= 0.2
+        score = max(score - 0.15, SCORE_MIN)
+        breakdown["penalties"] = 0.35
 
     steps = len(action_history)
     step_penalty = steps * STEP_PENALTY
-    score -= step_penalty
-    breakdown["penalties"] -= step_penalty
+    score = max(score - step_penalty, SCORE_MIN)
 
-    if breakdown["classification"] > 0:
+    if breakdown["classification"] > 0.1:
         eff = _calculate_efficiency_bonus(steps) * 0.2
         score += eff
-        breakdown["efficiency"] = eff
+        breakdown["efficiency"] = clamp_score(eff)
 
-    if not info_dict and breakdown["classification"] > 0:
+    if not info_dict and breakdown["classification"] > 0.1:
         info_dict["suggestion"] = "Great job!"
 
-    score = clamp_score(score)
-    return Reward(score=score, breakdown=breakdown), info_dict
+    return _safe_reward(score, breakdown), info_dict
 
 
 def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
@@ -109,7 +117,7 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
         "reply_quality": 0.1,
         "efficiency": 0.1,
         "bonus": 0.1,
-        "penalties": 0.0
+        "penalties": 0.1
     }
     info_dict = {}
 
@@ -127,11 +135,11 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
             if val and val.strip().lower() == target_class.lower():
                 if classifications == 1:
                     score += 0.2
-                    breakdown["classification"] = 0.2
+                    breakdown["classification"] = 0.3
                     classification_correct = True
             else:
-                score -= 0.1
-                breakdown["penalties"] -= 0.1
+                score = max(score - 0.1, SCORE_MIN)
+                breakdown["penalties"] = 0.2
                 info_dict["mistake"] = f"Incorrect classification: {val}"
                 info_dict["expected"] = target_class
         elif act.action_type == "route_to":
@@ -140,11 +148,11 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
             if val and val.strip().lower() == target_route.lower():
                 if routings == 1:
                     score += 0.2
-                    breakdown["routing"] = 0.2
+                    breakdown["routing"] = 0.3
                     routing_correct = True
             else:
-                score -= 0.1
-                breakdown["penalties"] -= 0.1
+                score = max(score - 0.1, SCORE_MIN)
+                breakdown["penalties"] = 0.2
                 if "mistake" not in info_dict:
                     info_dict["mistake"] = f"Incorrect routing: {val}"
                     info_dict["expected"] = target_route
@@ -154,42 +162,38 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
 
             if reply_score > 0:
                 score += reply_score
-                breakdown["reply_quality"] += reply_score
+                breakdown["reply_quality"] = clamp_score(0.1 + reply_score)
                 reply_correct = True
             else:
-                score += reply_score
-                breakdown["penalties"] += reply_score
                 if "mistake" not in info_dict:
                     info_dict["mistake"] = mistake
 
             polite = _check_politeness(text)
             score += polite
-            breakdown["bonus"] += polite
+            breakdown["bonus"] = clamp_score(breakdown.get("bonus", 0.1) + polite)
 
     if classifications > 1 or routings > 1:
-        score -= 0.2
-        breakdown["penalties"] -= 0.2
+        score = max(score - 0.15, SCORE_MIN)
+        breakdown["penalties"] = 0.3
 
     steps = len(action_history)
     step_penalty = steps * STEP_PENALTY
-    score -= step_penalty
-    breakdown["penalties"] -= step_penalty
+    score = max(score - step_penalty, SCORE_MIN)
 
     if classification_correct and routing_correct and reply_correct:
         eff = _calculate_efficiency_bonus(steps) * 0.1
         score += eff
-        breakdown["efficiency"] = eff
+        breakdown["efficiency"] = clamp_score(eff)
 
         bonus = 0.1
-        breakdown["bonus"] += bonus
+        breakdown["bonus"] = clamp_score(breakdown.get("bonus", 0.1) + bonus)
         score += bonus
 
         info_dict["suggestion"] = "Perfect workflow complete."
     elif not info_dict:
         info_dict["suggestion"] = "Ensure all required steps are completed appropriately."
 
-    score = clamp_score(score)
-    return Reward(score=score, breakdown=breakdown), info_dict
+    return _safe_reward(score, breakdown), info_dict
 
 
 def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
@@ -204,7 +208,7 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
         "reply_quality": 0.1,
         "efficiency": 0.1,
         "bonus": 0.1,
-        "penalties": 0.0
+        "penalties": 0.1
     }
     info_dict = {}
 
@@ -224,11 +228,11 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
             if val and val.strip().lower() == target_class.lower():
                 if classifications == 1:
                     score += 0.15
-                    breakdown["classification"] = 0.15
+                    breakdown["classification"] = 0.25
                     classification_correct = True
             else:
-                score -= 0.1
-                breakdown["penalties"] -= 0.1
+                score = max(score - 0.1, SCORE_MIN)
+                breakdown["penalties"] = 0.2
                 info_dict["mistake"] = f"Incorrect classification: {val}"
                 info_dict["expected"] = target_class
         elif act.action_type == "route_to":
@@ -237,19 +241,19 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
             if val and val.strip().lower() == target_route.lower():
                 if routings == 1:
                     score += 0.15
-                    breakdown["routing"] = 0.15
+                    breakdown["routing"] = 0.25
                     routing_correct = True
             else:
-                score -= 0.1
-                breakdown["penalties"] -= 0.1
+                score = max(score - 0.1, SCORE_MIN)
+                breakdown["penalties"] = 0.2
                 if "mistake" not in info_dict:
                     info_dict["mistake"] = f"Incorrect routing: {val}"
         elif act.action_type == "escalate":
             escalations += 1
             if task_data.get("must_escalate"):
                 if escalations == 1:
-                    score += 0.2
-                    breakdown["bonus"] += 0.2
+                    score += 0.15
+                    breakdown["bonus"] = clamp_score(breakdown.get("bonus", 0.1) + 0.15)
                     escalation_correct = True
         elif act.action_type == "draft_reply":
             text = act.arguments.get("text", "").lower()
@@ -257,43 +261,39 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
 
             if reply_score > 0:
                 score += reply_score
-                breakdown["reply_quality"] += reply_score
+                breakdown["reply_quality"] = clamp_score(0.1 + reply_score)
                 reply_correct = True
             else:
-                score += reply_score
-                breakdown["penalties"] += reply_score
                 if "mistake" not in info_dict:
                     info_dict["mistake"] = mistake
 
             polite = _check_politeness(text)
             score += polite
-            breakdown["bonus"] += polite
+            breakdown["bonus"] = clamp_score(breakdown.get("bonus", 0.1) + polite)
 
     if task_data.get("must_escalate") and escalations == 0:
-        score -= 0.2
-        breakdown["penalties"] -= 0.2
+        score = max(score - 0.15, SCORE_MIN)
+        breakdown["penalties"] = 0.3
 
     if classifications > 1 or routings > 1 or escalations > 1:
-        score -= 0.2
-        breakdown["penalties"] -= 0.2
+        score = max(score - 0.15, SCORE_MIN)
+        breakdown["penalties"] = 0.35
 
     steps = len(action_history)
     step_penalty = steps * STEP_PENALTY
-    score -= step_penalty
-    breakdown["penalties"] -= step_penalty
+    score = max(score - step_penalty, SCORE_MIN)
 
     if classification_correct and routing_correct and escalation_correct and reply_correct:
         eff = _calculate_efficiency_bonus(steps) * 0.1
         score += eff
-        breakdown["efficiency"] = eff
-        breakdown["bonus"] += 0.1
+        breakdown["efficiency"] = clamp_score(eff)
+        breakdown["bonus"] = clamp_score(breakdown.get("bonus", 0.1) + 0.1)
         score += 0.1
         info_dict["suggestion"] = "Perfect escalation workflow complete."
     elif not info_dict:
         info_dict["suggestion"] = "Ensure VIP emails are escalated explicitly."
 
-    score = clamp_score(score)
-    return Reward(score=score, breakdown=breakdown), info_dict
+    return _safe_reward(score, breakdown), info_dict
 
 
 def calculate_reward(task_id: str, action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
@@ -304,4 +304,4 @@ def calculate_reward(task_id: str, action_history: List[Action], task_data: Dict
     elif task_id == "task_3":
         return grade_task_3(action_history, task_data)
     else:
-        return Reward(score=0.1, breakdown={"penalties": 0.05}), {"error": "Invalid task ID"}
+        return _safe_reward(0.1, {"penalties": 0.1}), {"error": "Invalid task ID"}

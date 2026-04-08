@@ -20,6 +20,19 @@ TASKS_TO_RUN = ["task_1", "task_2", "task_3"]
 MAX_STEPS = 8
 REQUEST_TIMEOUT = 30
 
+# ── Strict bounds: scores never touch 0.0 or 1.0 ──────────────────
+SCORE_MIN = 0.1
+SCORE_MAX = 0.9
+
+
+def _clamp(v: float) -> float:
+    """Clamp a score to the safe open interval (0, 1) → [0.1, 0.9]."""
+    try:
+        return max(SCORE_MIN, min(SCORE_MAX, round(float(v), 4)))
+    except (TypeError, ValueError):
+        return 0.5
+
+
 SYSTEM_PROMPT = """You are an Enterprise Email Agent.
 Your goal is to handle incoming emails appropriately.
 Allowed Actions: classify_email, route_to, draft_reply, escalate, mark_spam, request_more_info, noop.
@@ -62,7 +75,7 @@ def step_env(action: dict) -> dict:
         print(f"[ERROR] Step failed: {e}", file=sys.stderr)
         return {
             "observation": {},
-            "reward": {"score": 0.01, "breakdown": {}},
+            "reward": {"score": SCORE_MIN, "breakdown": {}},
             "done": True,
             "info": {"error": str(e)}
         }
@@ -113,13 +126,13 @@ def run_task(task_id: str) -> float:
 
     obs = reset_env(task_id)
     if not obs:
-        print("[STEP] reward=0.01 done=true success=false")
+        print(f"[STEP] reward={SCORE_MIN:.4f} done=true success=false")
         print("[END]")
-        return 0.01
+        return SCORE_MIN
 
     done = False
     steps = 0
-    reward_dict: dict = {"score": 0.01}
+    reward_dict: dict = {"score": SCORE_MIN}
 
     while not done and steps < MAX_STEPS:
         steps += 1
@@ -127,17 +140,17 @@ def run_task(task_id: str) -> float:
 
         response = step_env(action)
         obs = response.get("observation", {})
-        reward_dict = response.get("reward", {"score": 0.01})
+        reward_dict = response.get("reward", {"score": SCORE_MIN})
         done = response.get("done", True)
 
-        score_now = reward_dict.get("score", 0.1) if isinstance(reward_dict, dict) else 0.1
-        score_now = max(0.1, min(0.9, float(score_now)))
+        score_now = reward_dict.get("score", SCORE_MIN) if isinstance(reward_dict, dict) else SCORE_MIN
+        score_now = _clamp(score_now)
         success = done and score_now > 0.5
         print(f"[STEP] reward={score_now:.4f} done={str(done).lower()} success={str(success).lower()}")
 
     print("[END]")
-    final_score = reward_dict.get("score", 0.1) if isinstance(reward_dict, dict) else 0.1
-    final_score = max(0.1, min(0.9, final_score))
+    final_score = reward_dict.get("score", SCORE_MIN) if isinstance(reward_dict, dict) else SCORE_MIN
+    final_score = _clamp(final_score)
     print(f"Task {task_id} complete. Final score: {final_score}")
     return final_score
 
