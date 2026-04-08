@@ -26,9 +26,9 @@ The environment is deterministic, uses dense rewards, and applies loop detection
 
 ## Score Rules
 
-- Final reward scores are always clamped into the safe band `[0.01, 0.99]`
+- Final reward scores are always clamped into the safe band `[0.0001, 0.9999]`
 - Reward scores therefore remain strictly inside `(0, 1)`
-- Reward breakdown values are also clamped into `[0.01, 0.99]`
+- Reward breakdown values are also clamped into `[0.0001, 0.9999]`
 - Invalid inputs fall back to `0.5` before clamping logic is applied downstream
 
 ## API

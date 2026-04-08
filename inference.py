@@ -26,7 +26,7 @@ SCORE_MAX = 0.9999
 SCORE_DEFAULT = 0.5
 
 def enforce_valid_score(score: Any) -> float:
-    """Clamp arbitrary input into the repo's safe score band [0.01, 0.99]."""
+    """Clamp arbitrary input into the repo's safe score band [0.0001, 0.9999]."""
     try:
         score = float(score)
         if score != score:  # NaN
