@@ -3,14 +3,12 @@ from typing import Dict, Any, List, Optional, Tuple
 from .models import (
     Reward,
     Action,
-    BINARY_FAIL,
     clamp_score,
     clamp_breakdown,
     SCORE_MIN,
     SCORE_MAX,
     enforce_valid_score,
-    coerce_binary_score,
-    is_binary_score,
+    is_strict_score,
 )
 
 
@@ -19,19 +17,11 @@ STEP_PENALTY = 0.03
 POLITE_WORDS = ["please", "thank", "appreciate", "sorry", "apologies"]
 
 
-def _binary_score(value: float) -> int:
-    """Normalize a task reward into the repo's binary score contract."""
-    score = coerce_binary_score(value)
-    if not is_binary_score(score):
-        raise ValueError(f"Score escaped binary bounds: {score}")
-    return score
-
-
-def _strict_fraction(value: float) -> float:
-    """Normalize non-reward numeric values into the repo's safe fractional band."""
+def _strict_score(value: float) -> float:
+    """Normalize a score and guarantee it stays in the strict open interval."""
     score = enforce_valid_score(value)
-    if not (SCORE_MIN <= score <= SCORE_MAX):
-        raise ValueError(f"Fraction escaped safe bounds: {score}")
+    if not is_strict_score(score):
+        raise ValueError(f"Score escaped strict bounds: {score}")
     return score
 
 
@@ -41,7 +31,7 @@ def _strip_punctuation(text: str) -> str:
 
 
 def _calculate_efficiency_bonus(steps: int) -> float:
-    return _strict_fraction(0.9 - (steps / MAX_STEPS))
+    return _strict_score(0.9 - (steps / MAX_STEPS))
 
 
 def _check_politeness(text: str) -> float:
@@ -74,14 +64,14 @@ def _evaluate_reply(text: str, keywords: List[str]) -> Tuple[Optional[float], st
 
     base = 0.3
     bonus = min(0.2, matches * 0.05)
-    return _strict_fraction(base + bonus), ""
+    return _strict_score(base + bonus), ""
 
 
 def _safe_reward(score: float, breakdown: Dict[str, float]) -> Reward:
     """Build a Reward with all values clamped. Single exit point for safety."""
-    reward = Reward(score=_binary_score(score), breakdown=clamp_breakdown(breakdown))
-    if not is_binary_score(reward.score):
-        raise ValueError(f"Reward score escaped binary bounds: {reward.score}")
+    reward = Reward(score=_strict_score(score), breakdown=clamp_breakdown(breakdown))
+    if not is_strict_score(reward.score):
+        raise ValueError(f"Reward score escaped strict bounds: {reward.score}")
     for key, value in reward.breakdown.items():
         if not (SCORE_MIN <= value <= SCORE_MAX):
             raise ValueError(f"Reward breakdown escaped safe bounds: {key}={value}")
@@ -136,7 +126,8 @@ def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     if not info_dict and breakdown["classification"] > 0.1:
         info_dict["suggestion"] = "Great job!"
 
-    return _safe_reward(_binary_score(score), breakdown), info_dict
+    score = enforce_valid_score(score)
+    return _safe_reward(score, breakdown), info_dict
 
 
 def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
@@ -229,7 +220,8 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure all required steps are completed appropriately."
 
-    return _safe_reward(_binary_score(score), breakdown), info_dict
+    score = enforce_valid_score(score)
+    return _safe_reward(score, breakdown), info_dict
 
 
 def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
@@ -333,7 +325,8 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
     elif not info_dict:
         info_dict["suggestion"] = "Ensure VIP emails are escalated explicitly."
 
-    return _safe_reward(_binary_score(score), breakdown), info_dict
+    score = enforce_valid_score(score)
+    return _safe_reward(score, breakdown), info_dict
 
 
 def calculate_reward(task_id: str, action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:
@@ -344,4 +337,4 @@ def calculate_reward(task_id: str, action_history: List[Action], task_data: Dict
     elif task_id == "task_3":
         return grade_task_3(action_history, task_data)
     else:
-        return _safe_reward(BINARY_FAIL, {"penalties": 0.1}), {"error": "Invalid task ID"}
+        return _safe_reward(0.1, {"penalties": 0.1}), {"error": "Invalid task ID"}

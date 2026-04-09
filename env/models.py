@@ -9,12 +9,10 @@ ActionType = Literal[
 ]
 
 
-# Non-reward numeric values still use the repo's safe fractional band.
+# Keep scores safely away from numeric boundaries so downstream rounding
+# can never land exactly on 0 or 1.
 SCORE_MIN = 0.01
 SCORE_MAX = 0.99
-BINARY_FAIL = 0
-BINARY_SUCCESS = 1
-SUCCESS_THRESHOLD = 0.5
 
 
 def enforce_valid_score(score: Any) -> float:
@@ -32,27 +30,18 @@ def enforce_valid_score(score: Any) -> float:
     return value
 
 
-def coerce_binary_score(score: Any) -> int:
-    try:
-        value = float(score)
-        if value != value:
-            return BINARY_FAIL
-    except Exception:
-        return BINARY_FAIL
-    return BINARY_SUCCESS if value >= SUCCESS_THRESHOLD else BINARY_FAIL
-
-
-def is_binary_score(score: Any) -> bool:
+def is_strict_score(score: Any) -> bool:
     try:
         value = float(score)
     except Exception:
         return False
-    return value in (float(BINARY_FAIL), float(BINARY_SUCCESS))
+    return 0 < value < 1 and SCORE_MIN <= value <= SCORE_MAX
 
 
 def validate_scores(scores: List[float]):
     for s in scores:
-        if not is_binary_score(s):
+        safe = enforce_valid_score(s)
+        if not is_strict_score(safe):
             raise ValueError(f"Invalid score detected: {s}")
 
 
@@ -89,13 +78,13 @@ class Action(BaseModel):
 
 
 class Reward(BaseModel):
-    score: int = Field(default=BINARY_FAIL)
+    score: float = Field(default=0.5)
     breakdown: Dict[str, float] = Field(default_factory=dict)
 
     @field_validator("score", mode="before")
     @classmethod
-    def clamp_score_range(cls, v: Any) -> int:
-        return coerce_binary_score(v)
+    def clamp_score_range(cls, v: Any) -> float:
+        return enforce_valid_score(v)
 
     @field_validator("breakdown", mode="before")
     @classmethod

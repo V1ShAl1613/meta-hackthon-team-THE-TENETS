@@ -21,12 +21,12 @@ MAX_STEPS = 8
 REQUEST_TIMEOUT = 30
 
 # ── Force strictly between 0 and 1 with a safety margin ──
-BINARY_FAIL = 0
-BINARY_SUCCESS = 1
-SCORE_DEFAULT = BINARY_FAIL
+SCORE_MIN = 0.01
+SCORE_MAX = 0.99
+SCORE_DEFAULT = 0.5
 
-def enforce_valid_score(score: Any) -> int:
-    """Normalize arbitrary input into a binary task score."""
+def enforce_valid_score(score: Any) -> float:
+    """Clamp arbitrary input into the repo's safe score band [0.01, 0.99]."""
     try:
         score = float(score)
         if score != score:  # NaN
@@ -34,15 +34,19 @@ def enforce_valid_score(score: Any) -> int:
     except (TypeError, ValueError):
         return SCORE_DEFAULT
 
-    return BINARY_SUCCESS if score >= 0.5 else BINARY_FAIL
+    if score < SCORE_MIN:
+        return SCORE_MIN
+    if score > SCORE_MAX:
+        return SCORE_MAX
+    return score
 
 def validate_scores(scores: List[float]):
     """Strict validation gate before final submission."""
     for s in scores:
-        if s not in (BINARY_FAIL, BINARY_SUCCESS):
+        if not (0 < s < 1 and SCORE_MIN <= s <= SCORE_MAX):
             raise ValueError(f"Invalid score detected: {s}")
 
-def _clamp(v: float) -> int:
+def _clamp(v: float) -> float:
     return enforce_valid_score(v)
 
 SYSTEM_PROMPT = """You are an Enterprise Email Agent.
@@ -51,7 +55,7 @@ Allowed Actions: classify_email, route_to, draft_reply, escalate, mark_spam, req
 
 You MUST respond strictly in valid JSON format containing two keys: "action_type" and "arguments".
 
-IMPORTANT: If asked for a task score, use only 0 or 1.
+IMPORTANT: Return ONLY a float strictly between 0 and 1 (never 0 or 1) if asked for any numeric metrics. Example: 0.73
 """
 
 NOOP_ACTION = {"action_type": "noop", "arguments": {}}
@@ -76,7 +80,7 @@ def step_env(action: dict) -> dict:
         print(f"[ERROR] Step failed: {e}", file=sys.stderr)
         return {
             "observation": {},
-            "reward": {"score": BINARY_FAIL, "breakdown": {}},
+            "reward": {"score": SCORE_MIN, "breakdown": {}},
             "done": True,
             "info": {"error": str(e)}
         }
@@ -120,18 +124,18 @@ def get_action_from_llm(obs: dict) -> dict:
         print(f"[ERROR] LLM call failed: {e}", file=sys.stderr)
         return dict(NOOP_ACTION)
 
-def run_task(task_id: str) -> int:
+def run_task(task_id: str) -> float:
     print(f"[START] {task_id}")
 
     obs = reset_env(task_id)
     if not obs:
-        print(f"[STEP] reward={BINARY_FAIL} done=true success=false")
+        print(f"[STEP] reward={SCORE_MIN:.4f} done=true success=false")
         print("[END]")
-        return BINARY_FAIL
+        return SCORE_MIN
 
     done = False
     steps = 0
-    reward_dict: dict = {"score": BINARY_FAIL}
+    reward_dict: dict = {"score": SCORE_MIN}
 
     while not done and steps < MAX_STEPS:
         steps += 1
@@ -139,22 +143,22 @@ def run_task(task_id: str) -> int:
 
         response = step_env(action)
         obs = response.get("observation", {})
-        reward_dict = response.get("reward", {"score": BINARY_FAIL})
+        reward_dict = response.get("reward", {"score": SCORE_MIN})
         done = response.get("done", True)
 
-        score_now = reward_dict.get("score", BINARY_FAIL) if isinstance(reward_dict, dict) else BINARY_FAIL
+        score_now = reward_dict.get("score", SCORE_MIN) if isinstance(reward_dict, dict) else SCORE_MIN
         score_now = enforce_valid_score(score_now)
-        success = done and score_now == BINARY_SUCCESS
-        print(f"[STEP] reward={score_now} done={str(done).lower()} success={str(success).lower()} source=environment")
+        success = done and score_now > 0.5
+        print(f"[STEP] reward={score_now:.4f} done={str(done).lower()} success={str(success).lower()} source=environment")
 
-    final_score = reward_dict.get("score", BINARY_FAIL) if isinstance(reward_dict, dict) else BINARY_FAIL
+    final_score = reward_dict.get("score", SCORE_MIN) if isinstance(reward_dict, dict) else SCORE_MIN
     final_score = enforce_valid_score(final_score)
     print(f"[END] Task {task_id} complete. Final score: {final_score}")
     return final_score
 
 if __name__ == "__main__":
     total_score = 0.0
-    scores: Dict[str, int] = {}
+    scores: Dict[str, float] = {}
 
     for task in TASKS_TO_RUN:
         score = run_task(task)
@@ -165,6 +169,7 @@ if __name__ == "__main__":
     validate_scores(list(scores.values()))
 
     avg_score = total_score / len(TASKS_TO_RUN)
+    avg_score = enforce_valid_score(avg_score)
     
     print(f"\nAverage Score: {avg_score:.4f}")
     if avg_score > 0.8:
