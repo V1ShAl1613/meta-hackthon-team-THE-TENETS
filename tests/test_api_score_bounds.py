@@ -1,7 +1,8 @@
 """End-to-end API score safety tests.
 
 These tests validate the real FastAPI runtime path used by deployment:
-`/reset` + `/step` responses must always produce reward scores strictly in (0, 1).
+`/step` responses must always produce binary reward scores, while other numeric
+fields stay in the repo's safe fractional band.
 """
 
 import random
@@ -9,7 +10,7 @@ from typing import Any, Dict, List
 
 from fastapi.testclient import TestClient
 
-from env.models import SCORE_MAX, SCORE_MIN
+from env.models import SCORE_MAX, SCORE_MIN, is_binary_score
 from env.tasks import TASKS
 from env.environment import app
 
@@ -17,24 +18,28 @@ from env.environment import app
 client = TestClient(app)
 
 
-def _assert_strict_score(value: float, label: str) -> None:
-    assert 0 < value < 1, f"{label}: {value} must be strictly in (0, 1)"
+def _assert_fraction_score(value: float, label: str) -> None:
     assert SCORE_MIN <= value <= SCORE_MAX, (
         f"{label}: {value} must be within safe band [{SCORE_MIN}, {SCORE_MAX}]"
     )
 
 
+def _assert_binary_score(value: Any, label: str) -> None:
+    assert value in (0, 1), f"{label}: {value} must be 0 or 1"
+    assert is_binary_score(value), f"{label}: {value} must satisfy the binary score contract"
+
+
 def _assert_breakdown(breakdown: Dict[str, Any], label: str) -> None:
     assert isinstance(breakdown, dict), f"{label}: breakdown must be a dict"
     for key, raw_value in breakdown.items():
-        _assert_strict_score(float(raw_value), f"{label}.breakdown[{key}]")
+        _assert_fraction_score(float(raw_value), f"{label}.breakdown[{key}]")
 
 
 def _reset_task(task_id: str) -> Dict[str, Any]:
     response = client.post("/reset", json={"task_id": task_id})
     assert response.status_code == 200
     payload = response.json()
-    _assert_strict_score(float(payload["urgency_score"]), f"/reset({task_id}).urgency_score")
+    _assert_fraction_score(float(payload["urgency_score"]), f"/reset({task_id}).urgency_score")
     return payload
 
 
@@ -43,7 +48,7 @@ def _step(action_type: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     assert response.status_code == 200
     payload = response.json()
     reward = payload["reward"]
-    _assert_strict_score(float(reward["score"]), f"/step({action_type}).score")
+    _assert_binary_score(reward["score"], f"/step({action_type}).score")
     _assert_breakdown(reward.get("breakdown", {}), f"/step({action_type})")
     return payload
 
@@ -92,7 +97,7 @@ def test_validation_error_path_still_returns_safe_score() -> None:
     response = client.post("/step", json={"action_type": "not_allowed", "arguments": {}})
     assert response.status_code == 200
     payload = response.json()
-    _assert_strict_score(float(payload["reward"]["score"]), "validation_error.score")
+    _assert_binary_score(payload["reward"]["score"], "validation_error.score")
     _assert_breakdown(payload["reward"].get("breakdown", {}), "validation_error")
 
 

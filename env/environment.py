@@ -7,7 +7,8 @@ from fastapi.exceptions import RequestValidationError
 
 from .models import (
     Observation, Action, Reward, StepResponse, ResetRequest,
-    clamp_score, clamp_breakdown, SCORE_MIN, SCORE_MAX, enforce_valid_score, is_strict_score,
+    BINARY_FAIL, clamp_score, clamp_breakdown, SCORE_MIN,
+    coerce_binary_score, is_binary_score,
 )
 from .tasks import TASKS
 from .graders import calculate_reward, MAX_STEPS
@@ -22,11 +23,11 @@ ALLOWED_ACTIONS = [
 def _safe_reward(score: float, breakdown: Dict[str, float]) -> Reward:
     """Build a Reward with all values clamped."""
     reward = Reward(
-        score=enforce_valid_score(score),
+        score=coerce_binary_score(score),
         breakdown=clamp_breakdown(breakdown)
     )
-    if not is_strict_score(reward.score):
-        raise ValueError(f"Environment emitted non-strict score: {reward.score}")
+    if not is_binary_score(reward.score):
+        raise ValueError(f"Environment emitted non-binary score: {reward.score}")
     return reward
 
 
@@ -54,7 +55,7 @@ class EmailEnv:
         if self.is_done:
             return StepResponse(
                 observation=self.current_obs,
-                reward=_safe_reward(SCORE_MIN, {"penalties": 0.5}),
+                reward=_safe_reward(BINARY_FAIL, {"penalties": 0.5}),
                 done=True,
                 info={"error": "Episode already done"}
             )
@@ -63,7 +64,7 @@ class EmailEnv:
             self.is_done = True
             return StepResponse(
                 observation=self.current_obs,
-                reward=_safe_reward(SCORE_MIN, {"penalties": 0.5}),
+                reward=_safe_reward(BINARY_FAIL, {"penalties": 0.5}),
                 done=True,
                 info={"error": "Invalid action_type", "reason": f"{action.action_type} is not allowed"}
             )
@@ -135,21 +136,23 @@ class EmailEnv:
             self.is_done = True
 
             if loop_detected:
-                reward.score = enforce_valid_score(reward.score - 0.3)
+                reward.score = BINARY_FAIL
                 reward.breakdown["penalties"] = clamp_score(
                     reward.breakdown.get("penalties", SCORE_MIN) + 0.3
                 )
                 info["reason"] = "Loop detected"
                 info["loop_pattern"] = loop_pattern
             elif self.step_count >= MAX_STEPS:
+                reward.score = BINARY_FAIL
                 info["reason"] = "Max steps reached"
             elif task_complete:
+                reward.score = coerce_binary_score(reward.score)
                 info["reason"] = "Task complete"
 
-        reward.score = enforce_valid_score(reward.score)
+        reward.score = coerce_binary_score(reward.score)
         reward.breakdown = clamp_breakdown(reward.breakdown)
-        if not is_strict_score(reward.score):
-            raise ValueError(f"Step produced non-strict score: {reward.score}")
+        if not is_binary_score(reward.score):
+            raise ValueError(f"Step produced non-binary score: {reward.score}")
 
         return StepResponse(
             observation=self.current_obs,
@@ -179,7 +182,7 @@ env = EmailEnv()
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     response = StepResponse(
         observation=env.current_obs,
-        reward=_safe_reward(SCORE_MIN, {"penalties": 0.5}),
+        reward=_safe_reward(BINARY_FAIL, {"penalties": 0.5}),
         done=True,
         info={"error": "Invalid action format received", "details": str(exc)}
     )
@@ -192,7 +195,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def generic_exception_handler(request: Request, exc: Exception):
     response = StepResponse(
         observation=env.current_obs,
-        reward=_safe_reward(SCORE_MIN, {"penalties": 0.5}),
+        reward=_safe_reward(BINARY_FAIL, {"penalties": 0.5}),
         done=True,
         info={"error": "System crash averted", "details": str(exc)}
     )
@@ -211,10 +214,10 @@ def reset_endpoint(req: Optional[ResetRequest] = None):
 @app.post("/step")
 def step_endpoint(action: Action):
     result = env.step(action)
-    result.reward.score = enforce_valid_score(result.reward.score)
+    result.reward.score = coerce_binary_score(result.reward.score)
     result.reward.breakdown = clamp_breakdown(result.reward.breakdown)
-    if not is_strict_score(result.reward.score):
-        raise ValueError(f"Endpoint returned non-strict score: {result.reward.score}")
+    if not is_binary_score(result.reward.score):
+        raise ValueError(f"Endpoint returned non-binary score: {result.reward.score}")
     return result.model_dump() if hasattr(result, "model_dump") else result.dict()
 
 

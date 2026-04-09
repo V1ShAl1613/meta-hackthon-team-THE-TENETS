@@ -1,4 +1,4 @@
-"""Verify score and breakdown values stay inside the repo's safe score band."""
+"""Verify task scores are binary while breakdown values stay in the safe score band."""
 
 import pytest
 
@@ -11,12 +11,25 @@ from env.graders import (
     grade_task_2,
     grade_task_3,
 )
-from env.models import Action, Reward, SCORE_MAX, SCORE_MIN, clamp_breakdown, clamp_score, is_strict_score
+from env.models import (
+    Action,
+    Reward,
+    SCORE_MAX,
+    SCORE_MIN,
+    clamp_breakdown,
+    clamp_score,
+    coerce_binary_score,
+    is_binary_score,
+)
 from env.tasks import TASKS
 
 
-def _assert_score_band(score: float, label: str = "") -> None:
-    assert 0 < score < 1, f"{label}: {score} must stay strictly inside (0, 1)"
+def _assert_binary_score(score: int, label: str = "") -> None:
+    assert score in (0, 1), f"{label}: {score} must be binary"
+    assert is_binary_score(score), f"{label}: {score} must satisfy the binary score contract"
+
+
+def _assert_fraction_band(score: float, label: str = "") -> None:
     assert SCORE_MIN <= score <= SCORE_MAX, (
         f"{label}: {score} must stay inside the repo score band [{SCORE_MIN}, {SCORE_MAX}]"
     )
@@ -24,7 +37,7 @@ def _assert_score_band(score: float, label: str = "") -> None:
 
 def _assert_breakdown_band(breakdown: dict, label: str = "") -> None:
     for key, value in breakdown.items():
-        _assert_score_band(value, f"{label} breakdown[{key}]")
+        _assert_fraction_band(value, f"{label} breakdown[{key}]")
 
 
 CLASSIFY_SUPPORT = Action(action_type="classify_email", arguments={"category": "support"})
@@ -73,18 +86,33 @@ class TestClampScore:
     def test_clamp_values(self, raw_value: float, expected: float) -> None:
         result = clamp_score(raw_value)
         assert result == expected
-        _assert_score_band(result, f"clamp_score({raw_value})")
+        _assert_fraction_band(result, f"clamp_score({raw_value})")
 
     def test_clamp_non_numeric_values(self) -> None:
         assert clamp_score("bad") == 0.5
         assert clamp_score(None) == 0.5
 
-    def test_is_strict_score_matches_contract(self) -> None:
-        assert is_strict_score(0.5)
-        assert is_strict_score(SCORE_MIN)
-        assert is_strict_score(SCORE_MAX)
-        assert not is_strict_score(0)
-        assert not is_strict_score(1)
+    def test_binary_score_matches_contract(self) -> None:
+        assert is_binary_score(0)
+        assert is_binary_score(1)
+        assert not is_binary_score(0.5)
+        assert not is_binary_score(SCORE_MIN)
+        assert not is_binary_score(SCORE_MAX)
+
+    @pytest.mark.parametrize(
+        ("raw_value", "expected"),
+        [
+            (-10.0, 0),
+            (0, 0),
+            (0.49, 0),
+            (0.5, 1),
+            (0.99, 1),
+            (1, 1),
+            (2.0, 1),
+        ],
+    )
+    def test_coerce_binary_score(self, raw_value: float, expected: int) -> None:
+        assert coerce_binary_score(raw_value) == expected
 
 
 class TestClampBreakdown:
@@ -105,22 +133,22 @@ class TestHelpers:
             "demo enterprise team upgrade", ["demo", "enterprise", "team", "upgrade"]
         )
         assert score is not None
-        assert score > 0
+        _assert_fraction_band(score, "reply_score")
 
     def test_politeness_bonus_stays_in_score_band(self) -> None:
         for text in ("some text", "please help"):
-            _assert_score_band(_check_politeness(text), f"_check_politeness({text!r})")
+            _assert_fraction_band(_check_politeness(text), f"_check_politeness({text!r})")
 
     @pytest.mark.parametrize("steps", range(0, 20))
     def test_efficiency_bonus_stays_in_score_band(self, steps: int) -> None:
-        _assert_score_band(_calculate_efficiency_bonus(steps), f"efficiency({steps})")
+        _assert_fraction_band(_calculate_efficiency_bonus(steps), f"efficiency({steps})")
 
 
 class TestRewardModel:
     @pytest.mark.parametrize("raw_score", [-1.0, 0, 0.001, 0.5, 0.999, 1, 2.0])
-    def test_reward_score_is_clamped_into_repo_band(self, raw_score: float) -> None:
+    def test_reward_score_is_binary(self, raw_score: float) -> None:
         reward = Reward(score=raw_score)
-        _assert_score_band(reward.score, f"Reward(score={raw_score})")
+        _assert_binary_score(reward.score, f"Reward(score={raw_score})")
 
     def test_reward_breakdown_is_clamped_into_repo_band(self) -> None:
         reward = Reward(score=0.5, breakdown={"a": -0.5, "b": 0, "c": 1, "d": 1.5})
@@ -144,7 +172,7 @@ class TestTask1Grading:
     )
     def test_score_bounds(self, actions) -> None:
         reward, _ = grade_task_1(actions, self.task_data)
-        _assert_score_band(reward.score, "task_1")
+        _assert_binary_score(reward.score, "task_1")
         _assert_breakdown_band(reward.breakdown, "task_1")
 
 
@@ -167,7 +195,7 @@ class TestTask2Grading:
     )
     def test_score_bounds(self, actions) -> None:
         reward, _ = grade_task_2(actions, self.task_data)
-        _assert_score_band(reward.score, "task_2")
+        _assert_binary_score(reward.score, "task_2")
         _assert_breakdown_band(reward.breakdown, "task_2")
 
 
@@ -191,14 +219,14 @@ class TestTask3Grading:
     )
     def test_score_bounds(self, actions) -> None:
         reward, _ = grade_task_3(actions, self.task_data)
-        _assert_score_band(reward.score, "task_3")
+        _assert_binary_score(reward.score, "task_3")
         _assert_breakdown_band(reward.breakdown, "task_3")
 
 
 class TestCalculateReward:
     def test_invalid_task_id_stays_inside_score_band(self) -> None:
         reward, _ = calculate_reward("task_999", [], {})
-        _assert_score_band(reward.score, "invalid_task_id")
+        _assert_binary_score(reward.score, "invalid_task_id")
         _assert_breakdown_band(reward.breakdown, "invalid_task_id")
 
 
@@ -224,14 +252,14 @@ class TestStress:
         task_data = TASKS[task_id]
         for action in self.all_actions:
             reward, _ = calculate_reward(task_id, [action], task_data)
-            _assert_score_band(reward.score, f"{task_id} single {action.action_type}")
+            _assert_binary_score(reward.score, f"{task_id} single {action.action_type}")
             _assert_breakdown_band(reward.breakdown, f"{task_id} single {action.action_type}")
 
     @pytest.mark.parametrize("task_id", ["task_1", "task_2", "task_3"])
     def test_long_noop_sequence(self, task_id: str) -> None:
         task_data = TASKS[task_id]
         reward, _ = calculate_reward(task_id, [NOOP] * 20, task_data)
-        _assert_score_band(reward.score, f"{task_id} noop")
+        _assert_binary_score(reward.score, f"{task_id} noop")
         _assert_breakdown_band(reward.breakdown, f"{task_id} noop")
 
     @pytest.mark.parametrize("task_id", ["task_1", "task_2", "task_3"])
@@ -240,5 +268,5 @@ class TestStress:
         reward, _ = calculate_reward(
             task_id, [CLASSIFY_WRONG, ROUTE_WRONG, DRAFT_BAD, DRAFT_EMPTY] * 3, task_data
         )
-        _assert_score_band(reward.score, f"{task_id} all_wrong")
+        _assert_binary_score(reward.score, f"{task_id} all_wrong")
         _assert_breakdown_band(reward.breakdown, f"{task_id} all_wrong")

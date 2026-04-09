@@ -26,10 +26,9 @@ The environment is deterministic, uses dense rewards, and applies loop detection
 
 ## Score Rules
 
-- Final reward scores are always clamped into the safe band `[0.01, 0.99]`
-- Reward scores therefore remain strictly inside `(0, 1)`
+- Final task reward scores are binary and always returned as `0` or `1`
 - Reward breakdown values are also clamped into `[0.01, 0.99]`
-- Invalid inputs fall back to `0.5` before clamping logic is applied downstream
+- Invalid task-score inputs fall back to `0`
 
 ## API
 
@@ -67,7 +66,7 @@ Example response shape:
     "previous_actions": ["classify_email"]
   },
   "reward": {
-    "score": 0.92,
+    "score": 1,
     "breakdown": {
       "classification": 0.7,
       "routing": 0.1,
