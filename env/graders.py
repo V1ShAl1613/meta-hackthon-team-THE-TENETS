@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 from .models import Reward, Action, clamp_score, clamp_breakdown, SCORE_MIN, SCORE_MAX, enforce_valid_score
 
 
@@ -25,25 +25,25 @@ def _check_politeness(text: str) -> float:
     return 0.1
 
 
-def _evaluate_reply(text: str, keywords: List[str]) -> Tuple[float, str]:
+def _evaluate_reply(text: str, keywords: List[str]) -> Tuple[Optional[float], str]:
     """Evaluate reply quality. Returns (score_delta, mistake_message).
 
-    IMPORTANT: All returned deltas are >= 0 to prevent the main score
-    from going negative. A poor reply simply earns 0 bonus.
+    Invalid replies return ``None`` so downstream code can avoid treating
+    them as a real score while still preserving the mistake message.
     """
     cleaned = _strip_punctuation(text.lower())
     words = cleaned.split()
     if not words:
-        return 0.0, "Reply is empty."
+        return None, "Reply is empty."
 
     words_set = set(words)
     matches = sum(1 for kw in keywords if kw.lower() in words_set)
     if matches == 0:
-        return 0.0, "Reply missing required keywords."
+        return None, "Reply missing required keywords."
 
     relevance = matches / len(words)
     if relevance < 0.05 and len(words) > 30:
-        return 0.0, "Reply is too verbose or lacks density."
+        return None, "Reply is too verbose or lacks density."
 
     base = 0.3
     bonus = min(0.2, matches * 0.05)
@@ -164,7 +164,7 @@ def grade_task_2(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
             text = act.arguments.get("text", "").lower()
             reply_score, mistake = _evaluate_reply(text, keywords)
 
-            if reply_score > 0:
+            if reply_score is not None and reply_score > 0:
                 score = enforce_valid_score(score + reply_score)
                 breakdown["reply_quality"] = clamp_score(0.1 + reply_score)
                 reply_correct = True
@@ -267,7 +267,7 @@ def grade_task_3(action_history: List[Action], task_data: Dict[str, Any]) -> Tup
             text = act.arguments.get("text", "").lower()
             reply_score, mistake = _evaluate_reply(text, keywords)
 
-            if reply_score > 0:
+            if reply_score is not None and reply_score > 0:
                 score = enforce_valid_score(score + reply_score)
                 breakdown["reply_quality"] = clamp_score(0.1 + reply_score)
                 reply_correct = True

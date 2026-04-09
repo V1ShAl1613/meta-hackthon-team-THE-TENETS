@@ -88,15 +88,16 @@ class TestClampBreakdown:
 
 
 class TestHelpers:
-    def test_evaluate_reply_never_returns_negative_score(self) -> None:
+    def test_evaluate_reply_invalid_replies_return_none(self) -> None:
         for text in ("", "hello world", " ".join(["word"] * 50) + " keyword"):
             score, _ = _evaluate_reply(text, ["keyword"])
-            assert score >= 0.0
+            assert score is None
 
     def test_evaluate_reply_rewards_good_replies(self) -> None:
         score, _ = _evaluate_reply(
             "demo enterprise team upgrade", ["demo", "enterprise", "team", "upgrade"]
         )
+        assert score is not None
         assert score > 0.0
 
     def test_politeness_bonus_stays_in_score_band(self) -> None:
