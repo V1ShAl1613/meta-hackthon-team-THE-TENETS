@@ -16,7 +16,7 @@ from env.tasks import TASKS
 
 
 def _assert_score_band(score: float, label: str = "") -> None:
-    assert 0.0 < score < 1.0, f"{label}: {score} must stay strictly inside (0, 1)"
+    assert 0 < score < 1, f"{label}: {score} must stay strictly inside (0, 1)"
     assert SCORE_MIN <= score <= SCORE_MAX, (
         f"{label}: {score} must stay inside the repo score band [{SCORE_MIN}, {SCORE_MAX}]"
     )
@@ -56,7 +56,7 @@ class TestClampScore:
         [
             (-10.0, SCORE_MIN),
             (-0.5, SCORE_MIN),
-            (0.0, SCORE_MIN),
+            (0, SCORE_MIN),
             (0.00001, SCORE_MIN),
             (0.001, SCORE_MIN),
             (0.01, 0.01),
@@ -66,7 +66,7 @@ class TestClampScore:
             (0.99, 0.99),
             (0.999, SCORE_MAX),
             (0.99999, SCORE_MAX),
-            (1.0, SCORE_MAX),
+            (1, SCORE_MAX),
             (2.0, SCORE_MAX),
         ],
     )
@@ -83,13 +83,13 @@ class TestClampScore:
         assert is_strict_score(0.5)
         assert is_strict_score(SCORE_MIN)
         assert is_strict_score(SCORE_MAX)
-        assert not is_strict_score(0.0)
-        assert not is_strict_score(1.0)
+        assert not is_strict_score(0)
+        assert not is_strict_score(1)
 
 
 class TestClampBreakdown:
     def test_clamps_breakdown_entries(self) -> None:
-        breakdown = clamp_breakdown({"a": -5.0, "b": 0.0, "c": 1.0, "d": 2.0, "e": 0.5})
+        breakdown = clamp_breakdown({"a": -5.0, "b": 0, "c": 1, "d": 2.0, "e": 0.5})
         _assert_breakdown_band(breakdown, "clamp_breakdown")
         assert breakdown["e"] == 0.5
 
@@ -105,7 +105,7 @@ class TestHelpers:
             "demo enterprise team upgrade", ["demo", "enterprise", "team", "upgrade"]
         )
         assert score is not None
-        assert score > 0.0
+        assert score > 0
 
     def test_politeness_bonus_stays_in_score_band(self) -> None:
         for text in ("some text", "please help"):
@@ -117,13 +117,13 @@ class TestHelpers:
 
 
 class TestRewardModel:
-    @pytest.mark.parametrize("raw_score", [-1.0, 0.0, 0.001, 0.5, 0.999, 1.0, 2.0])
+    @pytest.mark.parametrize("raw_score", [-1.0, 0, 0.001, 0.5, 0.999, 1, 2.0])
     def test_reward_score_is_clamped_into_repo_band(self, raw_score: float) -> None:
         reward = Reward(score=raw_score)
         _assert_score_band(reward.score, f"Reward(score={raw_score})")
 
     def test_reward_breakdown_is_clamped_into_repo_band(self) -> None:
-        reward = Reward(score=0.5, breakdown={"a": -0.5, "b": 0.0, "c": 1.0, "d": 1.5})
+        reward = Reward(score=0.5, breakdown={"a": -0.5, "b": 0, "c": 1, "d": 1.5})
         _assert_breakdown_band(reward.breakdown, "Reward")
 
 

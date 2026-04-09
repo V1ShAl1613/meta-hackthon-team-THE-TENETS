@@ -10,7 +10,7 @@ ActionType = Literal[
 
 
 # Keep scores safely away from numeric boundaries so downstream rounding
-# can never produce 0.0 or 1.0.
+# can never land exactly on 0 or 1.
 SCORE_MIN = 0.01
 SCORE_MAX = 0.99
 
@@ -35,7 +35,7 @@ def is_strict_score(score: Any) -> bool:
         value = float(score)
     except Exception:
         return False
-    return 0.0 < value < 1.0 and SCORE_MIN <= value <= SCORE_MAX
+    return 0 < value < 1 and SCORE_MIN <= value <= SCORE_MAX
 
 
 def validate_scores(scores: List[float]):

@@ -18,7 +18,7 @@ client = TestClient(app)
 
 
 def _assert_strict_score(value: float, label: str) -> None:
-    assert 0.0 < value < 1.0, f"{label}: {value} must be strictly in (0, 1)"
+    assert 0 < value < 1, f"{label}: {value} must be strictly in (0, 1)"
     assert SCORE_MIN <= value <= SCORE_MAX, (
         f"{label}: {value} must be within safe band [{SCORE_MIN}, {SCORE_MAX}]"
     )
