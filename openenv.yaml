@@ -45,7 +45,7 @@ observation_space:
       type: number
       minimum: 0.01
       maximum: 0.99
-      description: A pre-calculated priority metric strictly between 0 and 1.
+      description: A pre-calculated priority metric strictly between 0 and 1, clamped to the safe band [0.01, 0.99].
     sentiment:
       type: string
       description: Natural language sentiment of the email (e.g., frustrated, neutral, positive).
@@ -77,7 +77,7 @@ reward:
   type: number
   minimum: 0.01
   maximum: 0.99
-  description: Dense deterministic reward strictly between 0 and 1.
+  description: Dense deterministic reward strictly between 0 and 1, clamped to the safe band [0.01, 0.99].
 
 tasks:
   - id: task_1

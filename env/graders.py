@@ -1,6 +1,15 @@
 import re
 from typing import Dict, Any, List, Optional, Tuple
-from .models import Reward, Action, clamp_score, clamp_breakdown, SCORE_MIN, SCORE_MAX, enforce_valid_score
+from .models import (
+    Reward,
+    Action,
+    clamp_score,
+    clamp_breakdown,
+    SCORE_MIN,
+    SCORE_MAX,
+    enforce_valid_score,
+    is_strict_score,
+)
 
 
 MAX_STEPS = 8
@@ -52,7 +61,10 @@ def _evaluate_reply(text: str, keywords: List[str]) -> Tuple[Optional[float], st
 
 def _safe_reward(score: float, breakdown: Dict[str, float]) -> Reward:
     """Build a Reward with all values clamped. Single exit point for safety."""
-    return Reward(score=enforce_valid_score(score), breakdown=clamp_breakdown(breakdown))
+    reward = Reward(score=enforce_valid_score(score), breakdown=clamp_breakdown(breakdown))
+    if not is_strict_score(reward.score):
+        raise ValueError(f"Reward score escaped strict bounds: {reward.score}")
+    return reward
 
 
 def grade_task_1(action_history: List[Action], task_data: Dict[str, Any]) -> Tuple[Reward, Dict[str, str]]:

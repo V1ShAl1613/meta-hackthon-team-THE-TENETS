@@ -30,10 +30,18 @@ def enforce_valid_score(score: Any) -> float:
     return value
 
 
+def is_strict_score(score: Any) -> bool:
+    try:
+        value = float(score)
+    except Exception:
+        return False
+    return 0.0 < value < 1.0 and SCORE_MIN <= value <= SCORE_MAX
+
+
 def validate_scores(scores: List[float]):
     for s in scores:
         safe = enforce_valid_score(s)
-        if not (SCORE_MIN <= safe <= SCORE_MAX):
+        if not is_strict_score(safe):
             raise ValueError(f"Invalid score detected: {s}")
 
 

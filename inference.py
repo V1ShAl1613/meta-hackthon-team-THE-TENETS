@@ -43,7 +43,7 @@ def enforce_valid_score(score: Any) -> float:
 def validate_scores(scores: List[float]):
     """Strict validation gate before final submission."""
     for s in scores:
-        if not (SCORE_MIN <= s <= SCORE_MAX):
+        if not (0.0 < s < 1.0 and SCORE_MIN <= s <= SCORE_MAX):
             raise ValueError(f"Invalid score detected: {s}")
 
 def _clamp(v: float) -> float:

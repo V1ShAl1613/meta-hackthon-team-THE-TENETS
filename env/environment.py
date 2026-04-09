@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 
 from .models import (
     Observation, Action, Reward, StepResponse, ResetRequest,
-    clamp_score, clamp_breakdown, SCORE_MIN, SCORE_MAX, enforce_valid_score,
+    clamp_score, clamp_breakdown, SCORE_MIN, SCORE_MAX, enforce_valid_score, is_strict_score,
 )
 from .tasks import TASKS
 from .graders import calculate_reward, MAX_STEPS
@@ -21,10 +21,13 @@ ALLOWED_ACTIONS = [
 
 def _safe_reward(score: float, breakdown: Dict[str, float]) -> Reward:
     """Build a Reward with all values clamped."""
-    return Reward(
+    reward = Reward(
         score=enforce_valid_score(score),
         breakdown=clamp_breakdown(breakdown)
     )
+    if not is_strict_score(reward.score):
+        raise ValueError(f"Environment emitted non-strict score: {reward.score}")
+    return reward
 
 
 class EmailEnv:
@@ -145,6 +148,8 @@ class EmailEnv:
 
         reward.score = enforce_valid_score(reward.score)
         reward.breakdown = clamp_breakdown(reward.breakdown)
+        if not is_strict_score(reward.score):
+            raise ValueError(f"Step produced non-strict score: {reward.score}")
 
         return StepResponse(
             observation=self.current_obs,
@@ -208,6 +213,8 @@ def step_endpoint(action: Action):
     result = env.step(action)
     result.reward.score = enforce_valid_score(result.reward.score)
     result.reward.breakdown = clamp_breakdown(result.reward.breakdown)
+    if not is_strict_score(result.reward.score):
+        raise ValueError(f"Endpoint returned non-strict score: {result.reward.score}")
     return result.model_dump() if hasattr(result, "model_dump") else result.dict()
 
 

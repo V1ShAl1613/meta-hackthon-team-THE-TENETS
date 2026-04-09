@@ -2,6 +2,8 @@ from typing import Dict, Any
 from .models import Observation
 
 
+# All urgency scores are intentionally kept inside the same strict open interval
+# used for rewards so every numeric signal remains safely inside (0, 1).
 TASKS = {
     "task_1": {
         "description": "Classify email correctly (Easy)",

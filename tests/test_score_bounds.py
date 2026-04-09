@@ -11,7 +11,7 @@ from env.graders import (
     grade_task_2,
     grade_task_3,
 )
-from env.models import Action, Reward, SCORE_MAX, SCORE_MIN, clamp_breakdown, clamp_score
+from env.models import Action, Reward, SCORE_MAX, SCORE_MIN, clamp_breakdown, clamp_score, is_strict_score
 from env.tasks import TASKS
 
 
@@ -78,6 +78,13 @@ class TestClampScore:
     def test_clamp_non_numeric_values(self) -> None:
         assert clamp_score("bad") == 0.5
         assert clamp_score(None) == 0.5
+
+    def test_is_strict_score_matches_contract(self) -> None:
+        assert is_strict_score(0.5)
+        assert is_strict_score(SCORE_MIN)
+        assert is_strict_score(SCORE_MAX)
+        assert not is_strict_score(0.0)
+        assert not is_strict_score(1.0)
 
 
 class TestClampBreakdown:
